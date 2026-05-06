@@ -1,0 +1,107 @@
+# VidFlow — 万能视频下载器
+
+## 项目定位
+
+从任意平台（YouTube、B站、抖音、Twitter 等 1000+ 网站）下载视频的 Web 工具。轻量、无数据库、Python 技术栈。
+
+## 技术栈
+
+- **后端**: FastAPI + yt-dlp (Python API) + FFmpeg
+- **前端**: Vue 3 + Vite，单文件组件 `App.vue`
+- **存储**: 本地 `downloads/` 目录，无数据库
+
+## 目录结构
+
+```
+backend/
+  main.py              # FastAPI 应用入口（API + WebSocket + 静态文件）
+  downloader.py        # yt-dlp 封装（解析、直链、服务端下载、格式选择、FFmpeg 检测）
+  requirements.txt     # fastapi, uvicorn, yt-dlp, httpx, python-multipart
+frontend/
+  src/
+    App.vue            # 主组件（全部 UI 逻辑，含 <script setup> + <style scoped>）
+    main.js            # Vue 入口
+    style.css          # 全局 CSS 变量（配色、按钮、动画）
+    composables/i18n.js  # 中英文切换（reactive locale + t() 函数）
+  vite.config.js       # 开发代理 /api → :8000, /ws → ws://:8000
+docs/
+  requirements.md      # 需求分析文档
+  design.md            # 方案设计文档
+downloads/             # 下载文件暂存（gitignore）
+cookies.txt            # 可选，Netscape 格式 cookies（gitignore）
+```
+
+## 启动方式
+
+```bash
+# 开发
+cd backend  && uvicorn main:app --port 8000 --reload
+cd frontend && npx vite                     # http://localhost:5173
+
+# 生产
+cd frontend && npx vite build
+cd backend  && uvicorn main:app --port 8000  # http://localhost:8000
+```
+
+## 核心 API
+
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| `/api/info` | POST | 解析视频链接，返回标题/封面/格式列表 |
+| `/api/download` | POST | 发起下载（mode: server/direct） |
+| `/api/file/{task_id}` | GET | 提供已下载文件 |
+| `/api/thumbnail?url=...` | GET | 封面代理（绕过 Referrer/CORS） |
+| `/api/proxy-download?url=...&filename=...` | GET | 直链流式代理下载 |
+| `/api/task/{task_id}` | GET | 轮询任务状态 |
+| `/api/cookies-status` | GET | 查询 cookies.txt 是否配置 |
+| `/ws/progress/{task_id}` | WS | 实时进度推送（0.5s 间隔） |
+
+## 下载模式
+
+1. **服务端下载（默认）** — yt-dlp 下载到 downloads/，WebSocket 推送进度，完成后提供文件链接
+2. **直链下载** — 后端提取直链 URL，前端通过隐藏 iframe 代理下载，不弹窗。直链不可用时自动降级
+
+## 关键逻辑
+
+### 格式选择（downloader.py `start_download`）
+```
+用户选了 format_id + 有 FFmpeg → format_id+bestaudio/best （合并音视频）
+用户选了 format_id + 无 FFmpeg → format_id （仅该流）
+未选 + 有 FFmpeg           → best/bestvideo+bestaudio
+未选 + 无 FFmpeg           → best
+```
+
+### FFmpeg 检测
+1. 系统 PATH 中查找 `ffmpeg`
+2. `imageio-ffmpeg` 捆绑的二进制 (`get_ffmpeg_exe()`)
+3. 都没有 → 只下载视频流 + 显示 Warning
+
+### Cookies
+自动检测项目根目录 `cookies.txt`，存在则所有下载自动附带。抖音等平台需要 cookies 才能下载音频。
+
+### 封面代理
+`/api/thumbnail` 从目标 URL 提取域名作为 Referer，绕过浏览器的同源/Referrer 限制。
+
+### 直链有效性
+返回空直链的情况：`.m4s` 分段流、video-only 流、audio-only 流、格式不可用。前端收到空直链自动切换服务端模式。
+
+### 下载进度
+状态机: `starting → downloading → processing → merging → done`（出错则 → `error`）
+
+## 前端设计
+
+暖灰白底浅色风格（参考 awwards），直角无边角，无渐变，大写标签：
+
+- `--bg: #e9e9e9`, `--bg-card: #f5f5f5`
+- `--text: #222222`, `--text-dim: #717171`
+- `--primary: #222222`（黑底白字按钮）
+- `--accent: #e9ad68`（暖琥珀点缀）
+- border: `rgba(0,0,0,0.08)`
+
+i18n 通过 `useI18n()` composable，localStorage 持久化语言选择。
+
+## 已知限制
+
+- 抖音需 cookies 才能下载音频（视频流不需要）
+- 任务状态存在内存，服务重启后丢失
+- YouTube 部分网络环境可能 SSL 失败
