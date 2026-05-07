@@ -114,6 +114,7 @@ B站跳过 `merging`（durl 单文件已含音频），直接 `downloading → d
 - border: `rgba(0,0,0,0.08)`
 - 基础字号 `18px`，按钮胶囊形（border-radius: 100px）
 - Logo: 纯文字 `VidFlow`（无图标，无 favicon）
+- Hero 区域：仅标题"粘贴链接，即刻下载。"，下方留白 60px 居中输入框
 - 特性卡片：无外框，竖线分隔（响应式：移动端横线分隔）
 - AI 面板：无关闭按钮（× 已移除）
 - i18n 通过 `useI18n()` composable，localStorage 持久化语言选择

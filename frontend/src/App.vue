@@ -750,21 +750,12 @@ function formatSize(bytes) {
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.03em;
-  margin-bottom: 16px;
+  margin-bottom: 60px;
 }
 .hero-subtitle {
   font-weight: 300;
   color: var(--text-dim);
 }
-.hero-desc {
-  color: var(--text-dim);
-  font-size: 1rem;
-  font-weight: 300;
-  line-height: 1.5;
-  margin-bottom: 40px;
-  max-width: 440px;
-}
-
 /* ── Input ───────────────────────────────────────────────────── */
 .input-card {
   border: 1px solid var(--border);
