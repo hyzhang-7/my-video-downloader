@@ -12,19 +12,19 @@
   --border: rgba(0, 0, 0, 0.08);
   --border-hover: rgba(0, 0, 0, 0.15);
   --text: #222222;
-  --text-dim: #717171;
+  --text-dim: #222222;
   --primary: #222222;
   --primary-hover: #444444;
   --accent: #e9ad68;
   --accent-dark: #8f4822;
   --success: #22c55e;
   --error: #ef4444;
-  --radius: 0px;
-  --radius-sm: 0px;
+  --radius: 100px;
+  --radius-sm: 14px;
 }
 
 html {
-  font-size: 16px;
+  font-size: 18px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -64,7 +64,7 @@ body {
   gap: 8px;
   padding: 12px 28px;
   border: none;
-  border-radius: 0;
+  border-radius: 100px;
   font-size: 0.875rem;
   font-weight: 500;
   color: #ffffff;
@@ -97,7 +97,7 @@ body {
   gap: 6px;
   padding: 10px 20px;
   border: 1px solid rgba(0,0,0,0.15);
-  border-radius: 0;
+  border-radius: 100px;
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--text);
@@ -116,7 +116,7 @@ body {
 /* ── Scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 0; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: var(--radius); }
 
 /* ── Animations ──────────────────────────────────────────────── */
 @keyframes fadeInUp {

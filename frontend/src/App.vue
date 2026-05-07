@@ -400,8 +400,7 @@ function formatSize(bytes) {
     <!-- Header -->
     <header class="header">
       <div class="logo">
-        <span class="logo-mark">&#9654;</span>
-        <span class="logo-text">vid<span class="logo-light">flow</span></span>
+        <span class="logo-text">Vid<span class="logo-light">Flow</span></span>
       </div>
       <div class="header-right">
         <button class="lang-toggle" @click="toggleLocale">
@@ -418,7 +417,7 @@ function formatSize(bytes) {
           {{ t('heroTitle') }}<br />
           <span class="hero-subtitle">{{ t('heroSub') }}</span>
         </h1>
-        <p class="hero-desc">{{ t('heroDesc') }}</p>
+
       </div>
 
       <!-- Input -->
@@ -524,8 +523,6 @@ function formatSize(bytes) {
     <!-- AI Panel -->
     <section v-if="showAiPanel && step !== 'input'" class="content animate-in">
       <div class="ai-panel">
-        <button class="btn-close-panel" @click="closeAiPanel">&times;</button>
-
         <div v-if="aiLoading" class="ai-loading">{{ t('aiGenerating') }}</div>
         <div v-if="aiError" class="error-msg">{{ aiError }}</div>
 
@@ -705,9 +702,10 @@ function formatSize(bytes) {
 .lang-toggle {
   background: none;
   border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 100px;
   color: var(--text-dim);
   font-size: 0.6rem;
-  font-weight: 600;
+  font-weight: 300;
   letter-spacing: 0.08em;
   padding: 4px 8px;
   cursor: pointer;
@@ -723,15 +721,10 @@ function formatSize(bytes) {
   align-items: baseline;
   gap: 2px;
 }
-.logo-mark {
-  font-size: 0.7rem;
-  color: var(--text-dim);
-  margin-right: 6px;
-}
 .logo-text {
-  font-size: 1.15rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 .logo-light {
   font-weight: 300;
@@ -739,7 +732,7 @@ function formatSize(bytes) {
 }
 .header-tag {
   font-size: 0.65rem;
-  font-weight: 500;
+  font-weight: 300;
   color: var(--text-dim);
   letter-spacing: 0.08em;
 }
@@ -754,7 +747,7 @@ function formatSize(bytes) {
 }
 .hero-title {
   font-size: clamp(2.2rem, 5vw, 3rem);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.03em;
   margin-bottom: 16px;
@@ -766,6 +759,7 @@ function formatSize(bytes) {
 .hero-desc {
   color: var(--text-dim);
   font-size: 1rem;
+  font-weight: 300;
   line-height: 1.5;
   margin-bottom: 40px;
   max-width: 440px;
@@ -774,6 +768,7 @@ function formatSize(bytes) {
 /* ── Input ───────────────────────────────────────────────────── */
 .input-card {
   border: 1px solid var(--border);
+  border-radius: var(--radius);
   background: var(--bg-card);
   padding: 6px;
 }
@@ -819,6 +814,7 @@ function formatSize(bytes) {
   color: var(--text-dim);
   cursor: pointer;
   font-size: 0.8rem;
+  font-weight: 300;
   font-family: inherit;
   letter-spacing: 0.02em;
 }
@@ -830,7 +826,7 @@ function formatSize(bytes) {
 }
 .label {
   font-size: 0.6rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text-dim);
   letter-spacing: 0.1em;
   margin-bottom: 10px;
@@ -843,6 +839,7 @@ function formatSize(bytes) {
   gap: 20px;
   padding: 14px;
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg-card);
 }
 .video-thumb {
@@ -862,7 +859,7 @@ function formatSize(bytes) {
 }
 .video-title {
   font-size: 0.95rem;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -876,6 +873,7 @@ function formatSize(bytes) {
 }
 .tag {
   font-size: 0.7rem;
+  font-weight: 300;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -892,6 +890,8 @@ function formatSize(bytes) {
   gap: 1px;
   background: var(--border);
   border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 .mode-btn {
   padding: 12px 14px;
@@ -900,6 +900,7 @@ function formatSize(bytes) {
   color: var(--text-dim);
   cursor: pointer;
   font-size: 0.75rem;
+  font-weight: 300;
   font-family: inherit;
   letter-spacing: 0.02em;
   text-align: left;
@@ -908,6 +909,7 @@ function formatSize(bytes) {
 .mode-btn:hover { color: var(--text); }
 .mode-btn.active {
   color: var(--text);
+  font-weight: 500;
   background: #e0e0e0;
 }
 
@@ -926,16 +928,19 @@ function formatSize(bytes) {
   gap: 6px;
   padding: 8px 14px;
   border: 1px solid var(--border);
+  border-radius: 100px;
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
   transition: all 0.15s;
   font-family: inherit;
   font-size: 0.8rem;
+  font-weight: 300;
 }
 .format-chip:hover { color: var(--text); border-color: rgba(0,0,0,0.15); }
 .format-chip.selected {
   color: var(--text);
+  font-weight: 500;
   border-color: rgba(0,0,0,0.3);
   background: #e0e0e0;
 }
@@ -947,6 +952,7 @@ function formatSize(bytes) {
 .progress-card {
   padding: 24px;
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg-card);
 }
 .progress-header {
@@ -971,6 +977,7 @@ function formatSize(bytes) {
 .progress-meta {
   margin-top: 10px;
   font-size: 0.75rem;
+  font-weight: 300;
   color: var(--text-dim);
 }
 
@@ -983,11 +990,13 @@ function formatSize(bytes) {
 }
 .done-mark {
   font-size: 1rem;
+  font-weight: 300;
   color: var(--text-dim);
 }
-.done-title { font-size: 1rem; font-weight: 500; }
+.done-title { font-size: 1rem; font-weight: 600; }
 .done-file {
   font-size: 0.8rem;
+  font-weight: 300;
   color: var(--text-dim);
   max-width: 400px;
   overflow: hidden;
@@ -1012,29 +1021,30 @@ function formatSize(bytes) {
 .features {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
   margin-top: 80px;
-  background: var(--border);
-  border: 1px solid var(--border);
 }
 .feature {
   padding: 28px 20px;
-  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+}
+.feature:last-child {
+  border-right: none;
 }
 .feature-num {
   font-size: 0.6rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text-dim);
   letter-spacing: 0.1em;
   margin-bottom: 14px;
 }
 .feature h3 {
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: 8px;
 }
 .feature p {
   font-size: 0.75rem;
+  font-weight: 300;
   color: var(--text-dim);
   line-height: 1.6;
 }
@@ -1051,6 +1061,7 @@ function formatSize(bytes) {
 }
 .footer p {
   font-size: 0.7rem;
+  font-weight: 300;
   color: var(--text-dim);
   letter-spacing: 0.03em;
 }
@@ -1078,9 +1089,10 @@ function formatSize(bytes) {
 .btn-inline {
   background: none;
   border: 1px solid var(--border);
+  border-radius: 100px;
   color: var(--text-dim);
   font-size: 0.65rem;
-  font-weight: 500;
+  font-weight: 300;
   letter-spacing: 0.04em;
   padding: 4px 10px;
   cursor: pointer;
@@ -1111,7 +1123,7 @@ function formatSize(bytes) {
 }
 .mindmap-overlay-title {
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text-dim);
   letter-spacing: 0.08em;
 }
@@ -1138,6 +1150,8 @@ function formatSize(bytes) {
   .video-card { flex-direction: column; }
   .video-thumb { width: 100%; height: 180px; }
   .features { grid-template-columns: 1fr; }
+  .feature { border-right: none; border-bottom: 1px solid var(--border); }
+  .feature:last-child { border-bottom: none; }
   .mode-toggle { grid-template-columns: 1fr; }
 }
 
@@ -1147,12 +1161,13 @@ function formatSize(bytes) {
   margin-left: 1px;
   padding: 12px 18px;
   border: 1px solid var(--border);
+  border-radius: 100px;
   background: var(--bg-card);
   color: var(--text-dim);
   cursor: pointer;
   font-size: 0.8rem;
   font-family: inherit;
-  font-weight: 500;
+  font-weight: 300;
   letter-spacing: 0.04em;
   transition: all 0.2s;
 }
@@ -1170,29 +1185,17 @@ function formatSize(bytes) {
   position: relative;
   padding: 24px;
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg-card);
 }
 .ai-panel .label {
   margin-bottom: 12px;
 }
-.btn-close-panel {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  color: var(--text-dim);
-  cursor: pointer;
-  padding: 4px 8px;
-  line-height: 1;
-}
-.btn-close-panel:hover { color: var(--text); }
-
 .ai-loading {
   padding: 24px 0;
   color: var(--text-dim);
   font-size: 0.85rem;
+  font-weight: 300;
 }
 
 .ai-section {
@@ -1236,6 +1239,7 @@ function formatSize(bytes) {
 /* ── Mind Map ──────────────────────────────────────────────────── */
 .mindmap-wrap {
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .mindmap-svg {
@@ -1258,6 +1262,7 @@ function formatSize(bytes) {
   font-size: 0.8rem;
   line-height: 1.6;
   max-width: 85%;
+  border-radius: var(--radius);
 }
 .chat-user {
   align-self: flex-end;
@@ -1274,6 +1279,8 @@ function formatSize(bytes) {
   display: flex;
   gap: 0;
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 .chat-input {
   flex: 1;
@@ -1299,7 +1306,7 @@ function formatSize(bytes) {
   cursor: pointer;
   font-size: 0.75rem;
   font-family: inherit;
-  font-weight: 500;
+  font-weight: 300;
   letter-spacing: 0.04em;
 }
 .btn-send:hover { color: var(--text); }
@@ -1308,10 +1315,12 @@ function formatSize(bytes) {
 /* ── Subtitle text ──────────────────────────────────────────────── */
 .subtitles-detail {
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 .subtitles-summary {
   padding: 8px 12px;
   font-size: 0.7rem;
+  font-weight: 300;
   color: var(--text-dim);
   cursor: pointer;
   user-select: none;

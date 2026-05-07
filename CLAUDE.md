@@ -104,15 +104,19 @@ B站跳过 `merging`（durl 单文件已含音频），直接 `downloading → d
 
 ## 前端设计
 
-暖灰白底浅色风格（参考 awwards），直角无边角，无渐变，大写标签：
+暖灰白底浅色风格（参考 awwards + Apple），胶囊按钮 + 圆角卡片，无渐变：
 
 - `--bg: #e9e9e9`, `--bg-card: #f5f5f5`
-- `--text: #222222`, `--text-dim: #717171`
+- `--text: #222222`, `--text-dim: #222222`（同色，靠字重区分层次 — 主文字 500-700，次要 300-400）
 - `--primary: #222222`（黑底白字按钮）
 - `--accent: #e9ad68`（暖琥珀点缀）
+- `--radius: 100px`（胶囊按钮/输入框），`--radius-sm: 14px`（内容卡片）
 - border: `rgba(0,0,0,0.08)`
-
-i18n 通过 `useI18n()` composable，localStorage 持久化语言选择。
+- 基础字号 `18px`，按钮胶囊形（border-radius: 100px）
+- Logo: 纯文字 `VidFlow`（无图标，无 favicon）
+- 特性卡片：无外框，竖线分隔（响应式：移动端横线分隔）
+- AI 面板：无关闭按钮（× 已移除）
+- i18n 通过 `useI18n()` composable，localStorage 持久化语言选择
 
 ## AI 视频总结
 
