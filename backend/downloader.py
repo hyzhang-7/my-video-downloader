@@ -4,6 +4,7 @@ yt-dlp wrapper: extract info, direct URLs, and server-side download with progres
 import shutil
 import uuid
 from pathlib import Path
+from typing import Optional
 
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
@@ -16,10 +17,43 @@ DEFAULT_COOKIES = PROJECT_DIR / "cookies.txt"
 # In-memory task store
 tasks: dict[str, dict] = {}
 
-_ffmpeg_path: str | None = None
+_ffmpeg_path: Optional[str] = None
+_proxy_url: Optional[str] = None  # cached proxy detection result
 
 
-def _get_ffmpeg_path() -> str | None:
+def _detect_proxy() -> Optional[str]:
+    """Auto-detect local proxy (Clash, V2Ray, etc.) by probing common ports.
+    Returns proxy URL like 'http://127.0.0.1:7890' or None."""
+    global _proxy_url
+    if _proxy_url is not None:
+        return _proxy_url or None
+
+    import socket
+    candidates = [
+        ("http", 7890),   # Clash HTTP
+        ("socks5", 7891),  # Clash SOCKS5
+        ("http", 10809),   # V2Ray / Clash Verge HTTP
+        ("socks5", 10808),  # V2Ray / Clash Verge SOCKS5
+        ("socks5", 1080),   # Shadowsocks
+        ("http", 8888),     # Generic HTTP
+    ]
+    for scheme, port in candidates:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.3)
+            if s.connect_ex(('127.0.0.1', port)) == 0:
+                s.close()
+                _proxy_url = f"{scheme}://127.0.0.1:{port}"
+                return _proxy_url
+            s.close()
+        except Exception:
+            pass
+
+    _proxy_url = ""
+    return None
+
+
+def _get_ffmpeg_path() -> Optional[str]:
     """Find ffmpeg binary: system PATH > imageio_ffmpeg bundle."""
     global _ffmpeg_path
     if _ffmpeg_path is not None:
@@ -49,21 +83,51 @@ def _has_ffmpeg() -> bool:
     return _get_ffmpeg_path() is not None
 
 
-def _build_ydl_opts(outtmpl: str | None = None, *, quiet: bool = True) -> dict:
+def _build_ydl_opts(outtmpl: Optional[str] = None, *, quiet: bool = True, cookies_file: Optional[str] = None, url: str = "") -> dict:
     opts: dict = {
         "quiet": quiet,
         "no_warnings": True,
         "socket_timeout": 30,
         "retries": 3,
+        # Use android_vr client to avoid PO Token / SABR streaming issues on YouTube
+        "extractor_args": {"youtube": {"player_client": ["android_vr", "android"]}},
     }
     if outtmpl:
         opts["outtmpl"] = outtmpl
+    effective_cookies = cookies_file or (DEFAULT_COOKIES if DEFAULT_COOKIES.exists() else None)
+    if effective_cookies:
+        opts["cookiefile"] = str(effective_cookies)
+    if url and ("youtube.com" in url or "youtu.be" in url):
+        proxy = _detect_proxy()
+        if proxy:
+            opts["proxy"] = proxy
     return opts
+
+
+def _normalize_url(url: str) -> str:
+    """Convert platform-specific URL formats to yt-dlp compatible patterns."""
+    from urllib.parse import urlparse, parse_qs
+
+    parsed = urlparse(url)
+    host = parsed.netloc.replace("www.", "")
+
+    # Douyin: /jingxuan?modal_id=123  or  /user/xxx?modal_id=123  →  /video/123
+    if host == "douyin.com":
+        qs = parse_qs(parsed.query)
+        modal_id = qs.get("modal_id", [None])[0]
+        if modal_id:
+            return f"https://www.douyin.com/video/{modal_id}"
+        # Also handle /user/username path without modal_id
+        if "/user/" in parsed.path and "/video/" not in url:
+            pass  # user profile page, not a video — leave as-is
+
+    return url
 
 
 def extract_info(url: str) -> dict:
     """Fetch video metadata + available formats without downloading."""
-    with YoutubeDL(_build_ydl_opts()) as ydl:
+    url = _normalize_url(url)
+    with YoutubeDL(_build_ydl_opts(url=url)) as ydl:
         info = ydl.extract_info(url, download=False)
         info = ydl.sanitize_info(info)
 
@@ -103,12 +167,13 @@ def _has_direct_url(info: dict) -> bool:
     return False
 
 
-def get_direct_url(url: str, format_id: str | None = None) -> dict:
+def get_direct_url(url: str, format_id: Optional[str] = None) -> dict:
     """Extract direct stream URL (no server-side download).
     Returns empty direct_url when a single combined stream isn't available.
     """
+    url = _normalize_url(url)
     fmt = format_id or "bestvideo+bestaudio/best"
-    opts = _build_ydl_opts()
+    opts = _build_ydl_opts(url=url)
     opts["format"] = fmt
 
     try:
@@ -138,8 +203,9 @@ def get_direct_url(url: str, format_id: str | None = None) -> dict:
         return {"direct_url": "", "title": "", "ext": ""}
 
 
-def start_download(url: str, format_id: str | None = None, cookies_file: str | None = None) -> str:
+def start_download(url: str, format_id: Optional[str] = None, cookies_file: Optional[str] = None) -> str:
     """Launch a server-side download task, return task_id."""
+    url = _normalize_url(url)
     task_id = uuid.uuid4().hex[:12]
     tasks[task_id] = {
         "status": "starting",
@@ -154,13 +220,13 @@ def start_download(url: str, format_id: str | None = None, cookies_file: str | N
 
     has_ffmpeg = _has_ffmpeg()
     if format_id:
-        # User picked a specific format — also grab best audio when ffmpeg is available
         if has_ffmpeg:
-            fmt = f"{format_id}+bestaudio/best"
+            fmt = f"{format_id}+bestaudio/bestvideo+bestaudio/best"
         else:
             fmt = format_id
     elif has_ffmpeg:
-        fmt = "best/bestvideo+bestaudio"
+        # Prefer merging high-quality separate streams over low-quality combined
+        fmt = "bestvideo+bestaudio/best"
     else:
         fmt = "best"
 
@@ -199,14 +265,10 @@ def start_download(url: str, format_id: str | None = None, cookies_file: str | N
             t["progress"] = 100
 
     outtmpl = str(DOWNLOADS_DIR / f"%(title)s_{task_id}.%(ext)s")
-    opts = _build_ydl_opts(outtmpl, quiet=False)
+    opts = _build_ydl_opts(outtmpl, quiet=False, cookies_file=cookies_file, url=url)
     opts["format"] = fmt
     opts["progress_hooks"] = [_hook]
     opts["postprocessor_hooks"] = [_pp_hook]
-    # Auto-detect cookies.txt in project root unless explicitly overridden
-    effective_cookies = cookies_file or (DEFAULT_COOKIES if DEFAULT_COOKIES.exists() else None)
-    if effective_cookies:
-        opts["cookiefile"] = str(effective_cookies)
     if has_ffmpeg:
         opts["merge_output_format"] = "mp4"
         ffmpeg_path = _get_ffmpeg_path()

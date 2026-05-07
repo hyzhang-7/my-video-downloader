@@ -5,6 +5,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
+from typing import Optional
 from urllib.parse import unquote
 
 import httpx
@@ -16,6 +17,13 @@ from pydantic import BaseModel
 from urllib.parse import urlparse
 
 from downloader import DOWNLOADS_DIR, DEFAULT_COOKIES, extract_info, get_direct_url, start_download, tasks
+from douyin_extractor import (
+    extract_info_douyin,
+    get_direct_url_douyin,
+    start_download_douyin,
+    douyin_tasks,
+    extract_video_id as is_douyin_url,
+)
 
 app = FastAPI(title="Video Downloader")
 
@@ -37,9 +45,9 @@ class InfoRequest(BaseModel):
 
 class DownloadRequest(BaseModel):
     url: str
-    format_id: str | None = None
+    format_id: Optional[str] = None
     mode: str = "server"  # "server" | "direct"
-    cookies_file: str | None = None  # path to cookies.txt for platforms that need auth
+    cookies_file: Optional[str] = None  # path to cookies.txt for platforms that need auth
 
 
 # ── Thumbnail proxy ─────────────────────────────────────────────
@@ -88,7 +96,10 @@ def api_cookies_status():
 def api_info(req: InfoRequest):
     """Extract video metadata and available formats."""
     try:
-        info = extract_info(req.url)
+        if is_douyin_url(req.url):
+            info = extract_info_douyin(req.url)
+        else:
+            info = extract_info(req.url)
         return {"ok": True, "data": info}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -97,16 +108,24 @@ def api_info(req: InfoRequest):
 @app.post("/api/download")
 def api_download(req: DownloadRequest):
     """Start a download task (server mode) or return direct URL."""
+    is_dy = is_douyin_url(req.url)
+
     if req.mode == "direct":
         try:
-            info = get_direct_url(req.url, req.format_id)
+            if is_dy:
+                info = get_direct_url_douyin(req.url, req.format_id)
+            else:
+                info = get_direct_url(req.url, req.format_id)
             return {"ok": True, "mode": "direct", "data": info}
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     # Server-side download
     try:
-        task_id = start_download(req.url, req.format_id, cookies_file=req.cookies_file)
+        if is_dy:
+            task_id = start_download_douyin(req.url, req.format_id)
+        else:
+            task_id = start_download(req.url, req.format_id, cookies_file=req.cookies_file)
         return {"ok": True, "mode": "server", "task_id": task_id}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -115,10 +134,11 @@ def api_download(req: DownloadRequest):
 @app.get("/api/file/{task_id}")
 def api_file(task_id: str):
     """Serve downloaded file."""
-    if task_id not in tasks or tasks[task_id]["status"] != "done":
+    t = tasks.get(task_id) or douyin_tasks.get(task_id)
+    if not t or t["status"] != "done":
         raise HTTPException(status_code=404, detail="File not ready or not found")
 
-    filepath = tasks[task_id].get("filename", "")
+    filepath = t.get("filename", "")
     if not filepath or not Path(filepath).exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
 
@@ -129,7 +149,7 @@ def api_file(task_id: str):
 @app.get("/api/task/{task_id}")
 def api_task(task_id: str):
     """Poll task status (alternative to WebSocket)."""
-    t = tasks.get(task_id)
+    t = tasks.get(task_id) or douyin_tasks.get(task_id)
     if not t:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"ok": True, "data": t}
@@ -142,7 +162,7 @@ async def ws_progress(ws: WebSocket, task_id: str):
     await ws.accept()
     try:
         while True:
-            t = tasks.get(task_id, {})
+            t = tasks.get(task_id) or douyin_tasks.get(task_id, {})
             await ws.send_text(json.dumps({
                 "status": t.get("status", "unknown"),
                 "progress": t.get("progress", 0),
