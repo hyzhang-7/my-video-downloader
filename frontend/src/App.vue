@@ -51,6 +51,10 @@ async function parseUrl() {
   loading.value = true
   videoInfo.value = null
   selectedFormat.value = ''
+  aiResult.value = null
+  showAiPanel.value = false
+  chatMessages.value = []
+  aiError.value = ''
   try {
     const res = await fetch('/api/info', {
       method: 'POST',
@@ -151,6 +155,7 @@ function getDownloadLink() {
 }
 
 function goBack() {
+  url.value = ''
   videoInfo.value = null
   selectedFormat.value = ''
   error.value = ''
@@ -166,6 +171,11 @@ const chatMessages = ref([])
 const chatInput = ref('')
 const chatLoading = ref(false)
 const mindmapSvg = ref(null)
+const mindmapFullscreen = ref(false)
+const mindmapFullscreenSvg = ref(null)
+let mmInline = null
+let mmFullscreen = null
+const overlayRef = ref(null)
 
 async function startAiSummarize() {
   if (!videoInfo.value) return
@@ -197,14 +207,19 @@ async function startAiSummarize() {
   }
 }
 
-function renderMindmap(markdown) {
-  if (!mindmapSvg.value || !markdown) return
-  mindmapSvg.value.innerHTML = ''
+function renderMindmapTo(markdown, el) {
+  if (!el || !markdown) return null
+  el.innerHTML = ''
   const transformer = new Transformer()
-  const mm = Markmap.create(mindmapSvg.value)
+  const mm = Markmap.create(el)
   const { root } = transformer.transform(markdown)
   mm.setData(root)
   mm.fit()
+  return mm
+}
+
+function renderMindmap(markdown) {
+  mmInline = renderMindmapTo(markdown, mindmapSvg.value)
 }
 
 async function sendChatMessage() {
@@ -241,6 +256,126 @@ function closeAiPanel() {
   aiResult.value = null
   aiError.value = ''
   chatMessages.value = []
+}
+
+function openMindmapFullscreen() {
+  mindmapFullscreen.value = true
+  nextTick(() => {
+    if (aiResult.value?.outline_markdown && mindmapFullscreenSvg.value) {
+      mmFullscreen = renderMindmapTo(aiResult.value.outline_markdown, mindmapFullscreenSvg.value)
+    }
+    overlayRef.value?.focus()
+  })
+}
+
+function closeMindmapFullscreen() {
+  mindmapFullscreen.value = false
+}
+
+function onFullscreenKeydown(e) {
+  if (e.key === 'Escape') {
+    closeMindmapFullscreen()
+  }
+}
+
+function downloadMindmapImage() {
+  const isFull = mindmapFullscreen.value
+  const svgEl = isFull ? mindmapFullscreenSvg.value : mindmapSvg.value
+  const mm = isFull ? mmFullscreen : mmInline
+  if (!svgEl || !mm) return
+
+  // Get content bounds from markmap's internal state (actual node coords, not screen pixels)
+  const { x1, y1, x2, y2 } = mm.state.rect
+  if (!x2 || !y2) return
+
+  const padding = 20
+  const vbX = x1 - padding
+  const vbY = y1 - padding
+  const vbW = x2 - x1 + padding * 2
+  const vbH = y2 - y1 + padding * 2
+
+  const svgClone = svgEl.cloneNode(true)
+
+  // Remove d3-zoom transform from the top-level <g> — content renders at natural coords
+  const mainG = svgClone.querySelector('svg > g')
+  if (mainG) mainG.removeAttribute('transform')
+
+  // Replace foreignObject elements with text — canvas can't render foreignObject
+  const fos = svgClone.querySelectorAll('foreignObject')
+  fos.forEach(fo => {
+    const div = fo.querySelector('div')
+    if (!div) { fo.remove(); return }
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    text.textContent = div.textContent || ''
+    text.setAttribute('x', fo.getAttribute('x') || '0')
+    const foY = parseFloat(fo.getAttribute('y') || '0')
+    const foH = parseFloat(fo.getAttribute('height') || '20')
+    text.setAttribute('y', foY + foH / 2 + 1)
+    const ds = div.style
+    const fontSize = ds?.fontSize || '14px'
+    const color = ds?.color || '#222222'
+    const fw = ds?.fontWeight || '400'
+    text.setAttribute('style', `font-size:${fontSize};fill:${color};font-weight:${fw};font-family:Inter,sans-serif;dominant-baseline:central`)
+    fo.parentNode.replaceChild(text, fo)
+  })
+
+  const scale = 2
+  svgClone.setAttribute('width', vbW * scale)
+  svgClone.setAttribute('height', vbH * scale)
+  svgClone.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`)
+  svgClone.removeAttribute('xmlns:fo')
+
+  let svgString = new XMLSerializer().serializeToString(svgClone)
+  if (!svgString.includes('xmlns="http://www.w3.org/2000/svg"')) {
+    svgString = svgString.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ')
+  }
+
+  const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+
+  const img = new Image()
+  img.onload = () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = vbW * scale
+    canvas.height = vbH * scale
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#f5f5f5'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, vbW * scale, vbH * scale)
+    URL.revokeObjectURL(url)
+    canvas.toBlob((b) => {
+      if (!b) return
+      const dl = URL.createObjectURL(b)
+      const a = document.createElement('a')
+      a.href = dl
+      a.download = 'mindmap.png'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(dl)
+    }, 'image/png')
+  }
+  img.onerror = () => {
+    URL.revokeObjectURL(url)
+    const a = document.createElement('a')
+    const blob2 = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+    a.href = URL.createObjectURL(blob2)
+    a.download = 'mindmap.svg'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+  img.src = url
+}
+
+function downloadSubtitles() {
+  const dlUrl = `/api/subtitles/download?url=${encodeURIComponent(url.value.trim())}`
+  const a = document.createElement('a')
+  a.href = dlUrl
+  a.download = ''
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 
 onUnmounted(() => { if (ws) ws.close() })
@@ -306,7 +441,7 @@ function formatSize(bytes) {
             <span v-else>{{ t('download') }}</span>
           </button>
           <button
-            v-if="step === 'ready'"
+            v-if="step !== 'input'"
             class="btn-ai"
             :disabled="aiLoading"
             @click="startAiSummarize()"
@@ -387,7 +522,7 @@ function formatSize(bytes) {
     </section>
 
     <!-- AI Panel -->
-    <section v-if="showAiPanel && step === 'ready'" class="content animate-in">
+    <section v-if="showAiPanel && step !== 'input'" class="content animate-in">
       <div class="ai-panel">
         <button class="btn-close-panel" @click="closeAiPanel">&times;</button>
 
@@ -401,7 +536,10 @@ function formatSize(bytes) {
           </div>
 
           <div v-if="aiResult.subtitles_text" class="ai-section">
-            <span class="label">{{ t('aiSubtitles') }}</span>
+            <div class="section-header">
+              <span class="label">{{ t('aiSubtitles') }}</span>
+              <button class="btn-inline" @click="downloadSubtitles">&#8595; {{ t('downloadSubtitles') }}</button>
+            </div>
             <details class="subtitles-detail">
               <summary class="subtitles-summary">共 {{ aiResult.subtitles_text.length }} 字 — 点击展开</summary>
               <div class="subtitles-box">{{ aiResult.subtitles_text }}</div>
@@ -416,7 +554,13 @@ function formatSize(bytes) {
           </div>
 
           <div class="ai-section">
-            <span class="label">{{ t('aiMindMap') }}</span>
+            <div class="section-header">
+              <span class="label">{{ t('aiMindMap') }}</span>
+              <div class="section-actions">
+                <button class="btn-inline" @click="openMindmapFullscreen">&#9974; {{ t('mindmapFullscreen') }}</button>
+                <button class="btn-inline" @click="downloadMindmapImage">&#8595; {{ t('mindmapDownload') }}</button>
+              </div>
+            </div>
             <div class="mindmap-wrap">
               <svg ref="mindmapSvg" class="mindmap-svg"></svg>
             </div>
@@ -504,6 +648,32 @@ function formatSize(bytes) {
         <p>{{ t('feature3Desc') }}</p>
       </div>
     </section>
+
+    <!-- Mindmap fullscreen overlay -->
+    <Teleport to="body">
+      <div
+        v-if="mindmapFullscreen"
+        class="mindmap-overlay"
+        @keydown="onFullscreenKeydown"
+        tabindex="-1"
+        ref="overlayRef"
+      >
+        <div class="mindmap-overlay-header">
+          <span class="mindmap-overlay-title">{{ t('aiMindMap') }}</span>
+          <div class="mindmap-overlay-actions">
+            <button class="btn-inline" @click="downloadMindmapImage">
+              &#8595; {{ t('mindmapDownload') }}
+            </button>
+            <button class="btn-inline" @click="closeMindmapFullscreen">
+              &#10005; {{ t('exitFullscreen') }}
+            </button>
+          </div>
+        </div>
+        <div class="mindmap-overlay-body">
+          <svg ref="mindmapFullscreenSvg" class="mindmap-fullscreen-svg"></svg>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Footer -->
     <footer class="footer">
@@ -890,6 +1060,75 @@ function formatSize(bytes) {
   border-bottom: 1px solid rgba(0,0,0,0.1);
 }
 .footer a:hover { color: var(--text); }
+
+/* ── Section header (label + actions) ────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.section-header .label {
+  margin-bottom: 0;
+}
+.section-actions {
+  display: flex;
+  gap: 4px;
+}
+.btn-inline {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.btn-inline:hover {
+  color: var(--text);
+  border-color: rgba(0,0,0,0.2);
+}
+/* ── Mindmap fullscreen overlay ──────────────────────────────── */
+.mindmap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #e9e9e9;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.mindmap-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  flex-shrink: 0;
+}
+.mindmap-overlay-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
+.mindmap-overlay-actions {
+  display: flex;
+  gap: 8px;
+}
+.mindmap-overlay-body {
+  flex: 1;
+  overflow: hidden;
+  padding: 20px;
+}
+.mindmap-fullscreen-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 640px) {

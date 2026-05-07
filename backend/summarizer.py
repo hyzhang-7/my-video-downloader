@@ -20,6 +20,7 @@ DEFAULT_COOKIES = PROJECT_DIR / "cookies.txt"
 
 # In-memory caches (lifetime = server process, matches existing architecture)
 _subtitle_cache: dict[str, dict] = {}  # url -> {text, language, source}
+_subtitle_raw_cache: dict[str, list] = {}  # url -> raw segments (for SRT export)
 _summary_cache: dict[str, dict] = {}  # url -> summary result
 
 # Subtitle language priority: Chinese first, English fallback (for yt-dlp fallback)
@@ -187,11 +188,15 @@ def _extract_bilibili_subtitles(url: str) -> dict:
                 lines.append(f"{ts} {content}")
         text = "\n".join(lines)
 
+        # Cache raw segments for SRT export
+        _subtitle_raw_cache[url] = body
+
         return {
             "ok": True,
             "subtitles_text": text,
             "language": best.get("lan_doc", best.get("lan", "unknown")),
             "source": source,
+            "raw_type": "bilibili_segments",
         }
 
     except requests.RequestException as e:
@@ -240,11 +245,13 @@ def _extract_subtitles_ytdlp(url: str, cookies_source: Optional[str] = None) -> 
                 video_id = info["id"]
 
                 subtitle_text = None
+                raw_vtt = None
                 for fname in os.listdir(tmpdir):
                     if fname.startswith(video_id) and fname.endswith(".vtt"):
                         filepath = os.path.join(tmpdir, fname)
                         with open(filepath, "r", encoding="utf-8") as f:
-                            subtitle_text = _parse_vtt(f.read())
+                            raw_vtt = f.read()
+                            subtitle_text = _parse_vtt(raw_vtt)
                         break
 
                 if not subtitle_text:
@@ -254,11 +261,15 @@ def _extract_subtitles_ytdlp(url: str, cookies_source: Optional[str] = None) -> 
                         "message": "字幕文件解析失败",
                     }
 
+                if raw_vtt:
+                    _subtitle_raw_cache[url] = raw_vtt
+
                 return {
                     "ok": True,
                     "subtitles_text": subtitle_text,
                     "language": best_lang,
                     "source": source,
+                    "raw_type": "vtt",
                 }
 
     except DownloadError as e:
@@ -409,3 +420,71 @@ def chat_with_video(url: str, question: str, history: Optional[list[dict]] = Non
         return {"ok": True, "answer": response.choices[0].message.content.strip()}
     except Exception as e:
         return {"ok": False, "answer": f"AI 问答出错: {str(e)[:300]}"}
+
+
+def _bilibili_segments_to_srt(segments: list) -> str:
+    """Convert Bilibili subtitle segments to SRT format."""
+    lines = []
+    for i, seg in enumerate(segments, 1):
+        from_sec = seg.get("from", 0)
+        to_sec = seg.get("to", from_sec + 5)
+        content = seg.get("content", "").strip()
+        if not content:
+            continue
+
+        def _fmt(sec: float) -> str:
+            h = int(sec // 3600)
+            m = int((sec % 3600) // 60)
+            s = int(sec % 60)
+            ms = int((sec % 1) * 1000)
+            return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+        lines.append(f"{i}\n{_fmt(from_sec)} --> {_fmt(to_sec)}\n{content}\n")
+    return "\n".join(lines)
+
+
+def _vtt_to_srt(vtt_text: str) -> str:
+    """Convert VTT subtitle to SRT format."""
+    lines = []
+    idx = 0
+    for line in vtt_text.split("\n"):
+        line = line.strip()
+        if not line or line == "WEBVTT":
+            continue
+        if "-->" in line:
+            idx += 1
+            ts = line.replace(".", ",")
+            lines.append(f"{idx}\n{ts}\n")
+        elif line.startswith("NOTE") or line.startswith("Kind:") or line.startswith("Language:"):
+            continue
+        else:
+            lines.append(f"{line}\n")
+    return "\n".join(lines) if idx > 0 else ""
+
+
+def get_subtitle_download(url: str) -> tuple:
+    """
+    Get subtitles as a downloadable file. Returns (content, filename, media_type)
+    or raises ValueError if no subtitles available.
+    """
+    raw = _subtitle_raw_cache.get(url)
+    if not raw:
+        # Try to extract first
+        extract_subtitles(url)
+        raw = _subtitle_raw_cache.get(url)
+
+    if not raw:
+        raise ValueError("该视频无可用字幕")
+
+    if isinstance(raw, list):
+        # Bilibili segments → SRT
+        content = _bilibili_segments_to_srt(raw)
+        return content, "subtitles.srt", "text/plain; charset=utf-8"
+    elif isinstance(raw, str):
+        # VTT text → try SRT conversion, fallback to VTT
+        srt = _vtt_to_srt(raw)
+        if srt:
+            return srt, "subtitles.srt", "text/plain; charset=utf-8"
+        return raw, "subtitles.vtt", "text/vtt; charset=utf-8"
+
+    raise ValueError("不支持的字幕格式")

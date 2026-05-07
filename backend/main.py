@@ -24,7 +24,7 @@ from douyin_extractor import (
     douyin_tasks,
     extract_video_id as is_douyin_url,
 )
-from summarizer import extract_subtitles, generate_summary, chat_with_video
+from summarizer import extract_subtitles, generate_summary, chat_with_video, get_subtitle_download
 
 app = FastAPI(title="Video Downloader")
 
@@ -176,6 +176,25 @@ def api_subtitles(req: SummarizeRequest):
     try:
         result = extract_subtitles(req.url, cookies_source=req.cookies_source)
         return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/subtitles/download")
+def api_subtitles_download(url: str = Query(...)):
+    """Download subtitle file (SRT/VTT)."""
+    try:
+        content, filename, media_type = get_subtitle_download(url)
+        safe_name = filename.replace('"', '').replace("'", "")
+        return Response(
+            content=content.encode("utf-8"),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_name}"',
+            },
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

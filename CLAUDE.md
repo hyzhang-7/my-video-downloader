@@ -57,6 +57,7 @@ cd backend  && uvicorn main:app --port 8000  # http://localhost:8000
 | `/api/task/{task_id}` | GET | 轮询任务状态 |
 | `/api/cookies-status` | GET | 查询 cookies.txt 是否配置 |
 | `/api/subtitles` | POST | 提取视频字幕（B站免登公开 API） |
+| `/api/subtitles/download?url=...` | GET | 下载字幕文件（SRT 格式，B站/VTT 自动转换） |
 | `/api/summarize` | POST | AI 视频总结（字幕 + 大纲 + 要点 + 思维导图） |
 | `/api/chat` | POST | AI 视频问答（基于字幕内容） |
 | `/ws/progress/{task_id}` | WS | 实时进度推送（0.5s 间隔） |
@@ -133,9 +134,17 @@ B站: bvid → x/web-interface/view → aid+cid → x/v2/dm/view → subtitle_ur
 - 非流式调用，`temperature=0.7`，max_tokens=4096
 
 ### 前端展示
-- 一句话总结 + 核心要点（列表）+ 字幕原文（可折叠，带时间戳）
+- 一句话总结 + 核心要点（列表）+ 字幕原文（可折叠，带时间戳）+ 字幕下载按钮
 - 思维导图：`markmap-lib` + `markmap-view` 渲染 Markdown → 交互式 SVG
+- 思维导图全屏模式（Teleport 全屏浮层，Esc 关闭）
+- 思维导图下载 PNG：读取 `mm.state.rect`（markmap 内部节点坐标边界）计算 viewBox，移除 d3-zoom transform 后序列化 SVG → canvas → PNG，确保导出完整内容而非当前缩放区域
 - AI 问答：聊天界面，对话历史保留最近 10 轮
+- AI 面板在下载阶段（`step !== 'input'`）也可用，新 URL 解析时自动重置
+
+### 字幕下载
+- B站字幕自动转为 SRT 格式（`_bilibili_segments_to_srt`）
+- yt-dlp VTT 字幕自动转为 SRT（`_vtt_to_srt`），降级保留 VTT
+- 原始字幕缓存于 `_subtitle_raw_cache`，同 URL 不重复提取
 
 ## 已知限制
 

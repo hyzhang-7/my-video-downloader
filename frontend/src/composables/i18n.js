@@ -40,6 +40,11 @@ const zh = {
   aiGenerating: 'AI 分析中…',
   aiApiKeyMissing: '请配置 DEEPSEEK_API_KEY',
   aiSubtitles: '字幕原文',
+  downloadSubtitles: '下载字幕',
+  mindmapFullscreen: '全屏',
+  mindmapDownload: '下载图片',
+  exitFullscreen: '退出全屏',
+  copy: '复制',
 }
 
 const en = {
@@ -82,6 +87,11 @@ const en = {
   aiGenerating: 'AI analyzing…',
   aiApiKeyMissing: 'DEEPSEEK_API_KEY not configured',
   aiSubtitles: 'Subtitle Text',
+  downloadSubtitles: 'Download Subtitles',
+  mindmapFullscreen: 'Fullscreen',
+  mindmapDownload: 'Download Image',
+  exitFullscreen: 'Exit Fullscreen',
+  copy: 'Copy',
 }
 
 const messages = { zh, en }
