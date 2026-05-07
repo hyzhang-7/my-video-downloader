@@ -177,7 +177,53 @@ step=done     → 完成提示 + 保存按钮
 - 自动从目标 URL 提取域名作为 Referer
 - 绕过浏览器的 Referrer/CORS 限制
 
-## 7. 已知限制
+## 7. AI 视频总结
+
+### 7.1 架构
+
+```
+用户点击「AI 总结」
+  → POST /api/summarize { url }
+  → summarizer.extract_subtitles()
+      ├─ B站: x/web-interface/view → x/v2/dm/view → subtitle_url → JSON
+      └─ 其他: yt-dlp → writeautomaticsub → VTT → 解析
+  → summarizer.generate_summary()
+      → DeepSeek API (deepseek-chat)
+      → JSON 解析 → { summary, key_points, outline_markdown }
+  → 前端渲染:
+      ├─ 一句话总结
+      ├─ 字幕原文（可折叠，带时间戳）
+      ├─ 核心要点列表
+      ├─ markmap 思维导图（交互式 SVG）
+      └─ AI 问答聊天
+```
+
+### 7.2 B站免登字幕
+
+B站字幕 API 对比：
+
+| 端点 | 认证 | 来源 |
+|------|------|------|
+| `x/player/wbi/v2` | **需要登录** | yt-dlp 默认 |
+| `x/v2/dm/view` | **公开** | 参考 free-video-downloader |
+
+流程：`bvid → view API(aid+cid) → dm/view API(subtitle_url) → 下载字幕JSON`
+
+### 7.3 DeepSeek 集成
+
+- SDK: `openai.OpenAI(base_url="https://api.deepseek.com")`
+- 模型: `deepseek-chat`
+- Key: 项目根目录 `.env` 文件 `DEEPSEEK_API_KEY`
+- Prompt: 系统提示 + 字幕文本（截断至 15000 字符）
+- 输出: 强制 JSON 格式 `{"outline_markdown": "...", "key_points": [...], "summary": "..."}`
+
+### 7.4 前端组件
+
+- `markmap-lib` / `markmap-view`: Markdown → 交互式思维导图 SVG
+- 字幕原文: `<details>` 可折叠，`white-space: pre-wrap` 保留换行
+- AI 问答: 聊天界面，历史保留 10 轮
+
+## 8. 已知限制
 
 | 限制 | 说明 |
 |------|------|

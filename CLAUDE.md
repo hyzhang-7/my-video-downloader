@@ -2,12 +2,12 @@
 
 ## 项目定位
 
-从任意平台（YouTube、B站、抖音、Twitter 等 1000+ 网站）下载视频的 Web 工具。轻量、无数据库、Python 技术栈。
+从任意平台（YouTube、B站、抖音、Twitter 等 1000+ 网站）下载视频的 Web 工具。支持 **AI 视频总结**（字幕提取 + AI 大纲/要点/思维导图 + AI 问答）。轻量、无数据库、Python 技术栈。
 
 ## 技术栈
 
-- **后端**: FastAPI + yt-dlp (Python API) + FFmpeg
-- **前端**: Vue 3 + Vite，单文件组件 `App.vue`
+- **后端**: FastAPI + yt-dlp (Python API) + FFmpeg + DeepSeek API
+- **前端**: Vue 3 + Vite，单文件组件 `App.vue` + markmap 思维导图
 - **存储**: 本地 `downloads/` 目录，无数据库
 
 ## 目录结构
@@ -16,7 +16,9 @@
 backend/
   main.py              # FastAPI 应用入口（API + WebSocket + 静态文件）
   downloader.py        # yt-dlp 封装（解析、直链、服务端下载、格式选择、FFmpeg 检测）
-  requirements.txt     # fastapi, uvicorn, yt-dlp, httpx, python-multipart
+  summarizer.py        # AI 总结（字幕提取 + DeepSeek API + 思维导图 + 问答）
+  douyin_extractor.py  # 抖音免 Cookie 解析
+  requirements.txt     # fastapi, uvicorn, yt-dlp, httpx, python-multipart, openai, requests
 frontend/
   src/
     App.vue            # 主组件（全部 UI 逻辑，含 <script setup> + <style scoped>）
@@ -54,6 +56,9 @@ cd backend  && uvicorn main:app --port 8000  # http://localhost:8000
 | `/api/proxy-download?url=...&filename=...` | GET | 直链流式代理下载 |
 | `/api/task/{task_id}` | GET | 轮询任务状态 |
 | `/api/cookies-status` | GET | 查询 cookies.txt 是否配置 |
+| `/api/subtitles` | POST | 提取视频字幕（B站免登公开 API） |
+| `/api/summarize` | POST | AI 视频总结（字幕 + 大纲 + 要点 + 思维导图） |
+| `/api/chat` | POST | AI 视频问答（基于字幕内容） |
 | `/ws/progress/{task_id}` | WS | 实时进度推送（0.5s 间隔） |
 
 ## 下载模式
@@ -100,8 +105,33 @@ cd backend  && uvicorn main:app --port 8000  # http://localhost:8000
 
 i18n 通过 `useI18n()` composable，localStorage 持久化语言选择。
 
+## AI 视频总结
+
+### 流程
+```
+B站: bvid → x/web-interface/view → aid+cid → x/v2/dm/view → subtitle_url → 字幕 JSON
+其他: yt-dlp → extract_info → VTT 文件 → 解析纯文本
+→ DeepSeek API → 结构化输出（大纲 + 要点 + 思维导图 + 问答）
+```
+
+### B站字幕（免登录）
+- `x/v2/dm/view` 接口公开访问，无需 cookies
+- 优先人工字幕（`lan=zh`），降级 AI 字幕（`lan=ai-zh`）
+- 字幕缓存于内存，同 URL 不重复提取
+
+### DeepSeek 集成
+- 使用 OpenAI 兼容 SDK，`base_url="https://api.deepseek.com"`
+- API Key 从项目根目录 `.env` 文件读取 `DEEPSEEK_API_KEY`
+- 非流式调用，`temperature=0.7`，max_tokens=4096
+
+### 前端展示
+- 一句话总结 + 核心要点（列表）+ 字幕原文（可折叠，带时间戳）
+- 思维导图：`markmap-lib` + `markmap-view` 渲染 Markdown → 交互式 SVG
+- AI 问答：聊天界面，对话历史保留最近 10 轮
+
 ## 已知限制
 
 - 抖音需 cookies 才能下载音频（视频流不需要）
 - 任务状态存在内存，服务重启后丢失
 - YouTube 部分网络环境可能 SSL 失败
+- AI 总结的 DeepSeek API 需联网，B站字幕免登

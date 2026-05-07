@@ -1,6 +1,8 @@
 <script setup>
-import { ref, reactive, computed, onUnmounted } from 'vue'
+import { ref, reactive, computed, onUnmounted, nextTick } from 'vue'
 import { useI18n } from './composables/i18n.js'
+import { Transformer } from 'markmap-lib'
+import { Markmap } from 'markmap-view'
 
 const { t, toggleLocale, isZh } = useI18n()
 
@@ -155,6 +157,92 @@ function goBack() {
   resetProgress()
 }
 
+// ── AI state ──────────────────────────────────────────────────
+const aiLoading = ref(false)
+const aiError = ref('')
+const aiResult = ref(null)
+const showAiPanel = ref(false)
+const chatMessages = ref([])
+const chatInput = ref('')
+const chatLoading = ref(false)
+const mindmapSvg = ref(null)
+
+async function startAiSummarize() {
+  if (!videoInfo.value) return
+  aiError.value = ''
+  aiLoading.value = true
+  showAiPanel.value = true
+  aiResult.value = null
+  chatMessages.value = []
+  try {
+    const res = await fetch('/api/summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url.value.trim() }),
+    })
+    const data = await res.json()
+    if (!data.ok) {
+      aiError.value = data.message || t('parseFailed')
+      return
+    }
+    aiResult.value = data.data
+    await nextTick()
+    if (data.data.outline_markdown) {
+      renderMindmap(data.data.outline_markdown)
+    }
+  } catch (e) {
+    aiError.value = e.message || t('parseFailed')
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+function renderMindmap(markdown) {
+  if (!mindmapSvg.value || !markdown) return
+  mindmapSvg.value.innerHTML = ''
+  const transformer = new Transformer()
+  const mm = Markmap.create(mindmapSvg.value)
+  const { root } = transformer.transform(markdown)
+  mm.setData(root)
+  mm.fit()
+}
+
+async function sendChatMessage() {
+  if (!chatInput.value.trim() || chatLoading.value) return
+  const question = chatInput.value.trim()
+  chatInput.value = ''
+  chatMessages.value.push({ role: 'user', content: question })
+  chatLoading.value = true
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: url.value.trim(),
+        question,
+        history: chatMessages.value.slice(0, -1),
+      }),
+    })
+    const data = await res.json()
+    if (data.ok) {
+      chatMessages.value.push({ role: 'assistant', content: data.answer })
+    } else {
+      chatMessages.value.push({ role: 'assistant', content: data.answer || t('parseFailed') })
+    }
+  } catch (e) {
+    chatMessages.value.push({ role: 'assistant', content: t('wsFailed') })
+  } finally {
+    chatLoading.value = false
+  }
+}
+
+function closeAiPanel() {
+  showAiPanel.value = false
+  aiResult.value = null
+  aiError.value = ''
+  chatMessages.value = []
+}
+
 onUnmounted(() => { if (ws) ws.close() })
 
 function formatDuration(sec) {
@@ -216,6 +304,15 @@ function formatSize(bytes) {
             <span v-if="loading">...</span>
             <span v-else-if="step === 'input'">{{ t('parse') }}</span>
             <span v-else>{{ t('download') }}</span>
+          </button>
+          <button
+            v-if="step === 'ready'"
+            class="btn-ai"
+            :disabled="aiLoading"
+            @click="startAiSummarize()"
+          >
+            <span v-if="aiLoading">...</span>
+            <span v-else>{{ t('aiSummarize') }}</span>
           </button>
         </div>
         <div v-if="error" class="error-msg">{{ error }}</div>
@@ -286,6 +383,73 @@ function formatSize(bytes) {
             <span class="fmt-res">{{ t('audioOnly') }}</span>
           </button>
         </div>
+      </div>
+    </section>
+
+    <!-- AI Panel -->
+    <section v-if="showAiPanel && step === 'ready'" class="content animate-in">
+      <div class="ai-panel">
+        <button class="btn-close-panel" @click="closeAiPanel">&times;</button>
+
+        <div v-if="aiLoading" class="ai-loading">{{ t('aiGenerating') }}</div>
+        <div v-if="aiError" class="error-msg">{{ aiError }}</div>
+
+        <template v-if="aiResult">
+          <div class="ai-section">
+            <span class="label">{{ t('aiSummary') }}</span>
+            <p class="ai-summary">{{ aiResult.summary }}</p>
+          </div>
+
+          <div v-if="aiResult.subtitles_text" class="ai-section">
+            <span class="label">{{ t('aiSubtitles') }}</span>
+            <details class="subtitles-detail">
+              <summary class="subtitles-summary">共 {{ aiResult.subtitles_text.length }} 字 — 点击展开</summary>
+              <div class="subtitles-box">{{ aiResult.subtitles_text }}</div>
+            </details>
+          </div>
+
+          <div class="ai-section">
+            <span class="label">{{ t('aiKeyPoints') }}</span>
+            <ul class="ai-points">
+              <li v-for="(p, i) in aiResult.key_points" :key="i">{{ p }}</li>
+            </ul>
+          </div>
+
+          <div class="ai-section">
+            <span class="label">{{ t('aiMindMap') }}</span>
+            <div class="mindmap-wrap">
+              <svg ref="mindmapSvg" class="mindmap-svg"></svg>
+            </div>
+          </div>
+
+          <div class="ai-section">
+            <span class="label">{{ t('aiChat') }}</span>
+            <div class="chat-messages">
+              <div
+                v-for="(msg, i) in chatMessages"
+                :key="i"
+                :class="['chat-msg', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
+              >
+                {{ msg.content }}
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <input
+                v-model="chatInput"
+                class="chat-input"
+                :placeholder="t('aiAskPlaceholder')"
+                @keyup.enter="sendChatMessage"
+              />
+              <button
+                class="btn-send"
+                :disabled="!chatInput.trim() || chatLoading"
+                @click="sendChatMessage"
+              >
+                {{ t('aiSend') }}
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
     </section>
 
@@ -736,5 +900,192 @@ function formatSize(bytes) {
   .video-thumb { width: 100%; height: 180px; }
   .features { grid-template-columns: 1fr; }
   .mode-toggle { grid-template-columns: 1fr; }
+}
+
+/* ── AI Button ─────────────────────────────────────────────────── */
+.btn-ai {
+  flex-shrink: 0;
+  margin-left: 1px;
+  padding: 12px 18px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  transition: all 0.2s;
+}
+.btn-ai:hover {
+  color: var(--text);
+  border-color: rgba(0,0,0,0.15);
+}
+.btn-ai:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── AI Panel ──────────────────────────────────────────────────── */
+.ai-panel {
+  position: relative;
+  padding: 24px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.ai-panel .label {
+  margin-bottom: 12px;
+}
+.btn-close-panel {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+}
+.btn-close-panel:hover { color: var(--text); }
+
+.ai-loading {
+  padding: 24px 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.ai-section {
+  margin-top: 28px;
+}
+.ai-section:first-of-type {
+  margin-top: 0;
+}
+
+.ai-summary {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.ai-points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-points li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+.ai-points li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+}
+
+/* ── Mind Map ──────────────────────────────────────────────────── */
+.mindmap-wrap {
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.mindmap-svg {
+  width: 100%;
+  height: 420px;
+  display: block;
+}
+
+/* ── Chat ──────────────────────────────────────────────────────── */
+.chat-messages {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chat-msg {
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  max-width: 85%;
+}
+.chat-user {
+  align-self: flex-end;
+  background: #e0e0e0;
+  color: var(--text);
+}
+.chat-ai {
+  align-self: flex-start;
+  background: #f0f0f0;
+  color: var(--text);
+  border-left: 2px solid var(--accent);
+}
+.chat-input-row {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+}
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 10px 12px;
+  font-family: inherit;
+}
+.chat-input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+.btn-send {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.btn-send:hover { color: var(--text); }
+.btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Subtitle text ──────────────────────────────────────────────── */
+.subtitles-detail {
+  border: 1px solid var(--border);
+}
+.subtitles-summary {
+  padding: 8px 12px;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.subtitles-summary:hover { color: var(--text); }
+.subtitles-box {
+  padding: 12px 14px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  border-top: 1px solid var(--border);
 }
 </style>

@@ -29,6 +29,17 @@ const zh = {
   parseFailed: '解析失败，请检查链接是否有效',
   downloadFailed: '下载请求失败',
   wsFailed: 'WebSocket 连接失败',
+  aiSummarize: 'AI 总结',
+  aiChat: 'AI 问答',
+  aiSummary: '视频总结',
+  aiKeyPoints: '核心要点',
+  aiMindMap: '思维导图',
+  aiAskPlaceholder: '针对视频内容提问…',
+  aiSend: '发送',
+  aiNoSubtitles: '该视频无可用字幕，暂不支持 AI 总结',
+  aiGenerating: 'AI 分析中…',
+  aiApiKeyMissing: '请配置 DEEPSEEK_API_KEY',
+  aiSubtitles: '字幕原文',
 }
 
 const en = {
@@ -60,6 +71,17 @@ const en = {
   parseFailed: 'Failed to parse link. Check the URL.',
   downloadFailed: 'Download request failed.',
   wsFailed: 'WebSocket connection failed.',
+  aiSummarize: 'AI Summarize',
+  aiChat: 'AI Chat',
+  aiSummary: 'Video Summary',
+  aiKeyPoints: 'Key Points',
+  aiMindMap: 'Mind Map',
+  aiAskPlaceholder: 'Ask about the video…',
+  aiSend: 'Send',
+  aiNoSubtitles: 'No subtitles available for this video.',
+  aiGenerating: 'AI analyzing…',
+  aiApiKeyMissing: 'DEEPSEEK_API_KEY not configured',
+  aiSubtitles: 'Subtitle Text',
 }
 
 const messages = { zh, en }

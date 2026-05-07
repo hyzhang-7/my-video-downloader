@@ -24,6 +24,7 @@ from douyin_extractor import (
     douyin_tasks,
     extract_video_id as is_douyin_url,
 )
+from summarizer import extract_subtitles, generate_summary, chat_with_video
 
 app = FastAPI(title="Video Downloader")
 
@@ -48,6 +49,18 @@ class DownloadRequest(BaseModel):
     format_id: Optional[str] = None
     mode: str = "server"  # "server" | "direct"
     cookies_file: Optional[str] = None  # path to cookies.txt for platforms that need auth
+
+
+class SummarizeRequest(BaseModel):
+    url: str
+    cookies_source: Optional[str] = None  # browser name or path to cookies.txt
+
+
+class ChatRequest(BaseModel):
+    url: str
+    question: str
+    history: list = []
+    cookies_source: Optional[str] = None
 
 
 # ── Thumbnail proxy ─────────────────────────────────────────────
@@ -153,6 +166,46 @@ def api_task(task_id: str):
     if not t:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"ok": True, "data": t}
+
+
+# ── AI summarization routes ──────────────────────────────────────
+
+@app.post("/api/subtitles")
+def api_subtitles(req: SummarizeRequest):
+    """Extract subtitles from a video URL."""
+    try:
+        result = extract_subtitles(req.url, cookies_source=req.cookies_source)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/summarize")
+def api_summarize(req: SummarizeRequest):
+    """Generate AI summary for a video (outline + key points + one-liner)."""
+    try:
+        result = generate_summary(req.url, cookies_source=req.cookies_source)
+        if not result.get("ok"):
+            raise HTTPException(status_code=400, detail=result.get("message", "总结失败"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/chat")
+def api_chat(req: ChatRequest):
+    """Chat with AI about a video's content."""
+    try:
+        result = chat_with_video(req.url, req.question, req.history, cookies_source=req.cookies_source)
+        if not result.get("ok"):
+            raise HTTPException(status_code=400, detail=result.get("answer", "问答失败"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ── WebSocket ───────────────────────────────────────────────────

@@ -1,5 +1,32 @@
 # 开发日志 — VidFlow 万能视频下载器
 
+## v1.2 — AI 视频总结
+
+### 新增
+
+**AI 视频内容分析** (`backend/summarizer.py`)
+- 字幕提取：B站使用 `x/v2/dm/view` 公开接口，免 cookies；其他平台走 yt-dlp
+- DeepSeek API 集成：生成视频大纲、核心要点、一句话总结
+- 思维导图：Markdown 大纲 → `markmap-lib` + `markmap-view` 交互式 SVG
+- AI 问答：基于视频字幕内容的上下文对话
+- 内存缓存：字幕和总结按 URL 缓存，避免重复请求
+
+**新增 API**
+| `/api/subtitles` | POST | 提取视频字幕文本（带时间戳） |
+| `/api/summarize` | POST | AI 总结（字幕 + 大纲 + 要点 + 思维导图） |
+| `/api/chat` | POST | AI 视频问答 |
+
+**B站免登录字幕**
+- B站字幕从 `x/player/wbi/v2`（需登录）迁移至 `x/v2/dm/view`（公开）
+- 优先人工中文字幕，降级 AI 中文字幕
+- 字幕带时间戳显示，可折叠展开
+
+### 技术栈
+
+新增依赖：`openai`（DeepSeek SDK）、`python-dotenv`（环境变量）、`requests`（B站 API）、`markmap-lib` + `markmap-view`（思维导图）
+
+---
+
 ## v1.1 — 抖音免 Cookie + YouTube 下载修复
 
 ### 新增
