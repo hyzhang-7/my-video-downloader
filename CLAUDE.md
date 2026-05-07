@@ -90,8 +90,16 @@ cd backend  && uvicorn main:app --port 8000  # http://localhost:8000
 ### 直链有效性
 返回空直链的情况：`.m4s` 分段流、video-only 流、audio-only 流、格式不可用。前端收到空直链自动切换服务端模式。
 
+### B站特殊处理
+yt-dlp 内置的 B站提取器对 API 请求（`api.bilibili.com/x/player/*`）返回 403。**解析和下载都不走 yt-dlp**，改为 `requests` 库直接调用 B站公开 API：
+- `x/web-interface/view` — 获取 title/封面/cid/分P列表
+- `x/player/playurl` — 获取格式列表 + CDN 直链（`fnval=1` 单文件 mp4）
+- CDN 下载用 `requests` 流式拉取 + 手动进度追踪，**完全绕过 yt-dlp**
+- 代理下载 `/api/proxy-download` 对 `bilivideo.com` CDN 自动设置 `Referer: https://www.bilibili.com/`
+
 ### 下载进度
 状态机: `starting → downloading → processing → merging → done`（出错则 → `error`）
+B站跳过 `merging`（durl 单文件已含音频），直接 `downloading → done`。
 
 ## 前端设计
 
@@ -131,6 +139,7 @@ B站: bvid → x/web-interface/view → aid+cid → x/v2/dm/view → subtitle_ur
 
 ## 已知限制
 
+- B站解析/下载完全绕过 yt-dlp，用 `requests` 直调公开 API（规避 403）
 - 抖音需 cookies 才能下载音频（视频流不需要）
 - 任务状态存在内存，服务重启后丢失
 - YouTube 部分网络环境可能 SSL 失败

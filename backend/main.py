@@ -238,11 +238,15 @@ async def ws_progress(ws: WebSocket, task_id: str):
 async def api_proxy_download(url: str = Query(...), filename: str = Query("video")):
     """Stream a direct URL to the client as a download (browser-native, no popup)."""
     parsed = urlparse(url)
-    referer = f"{parsed.scheme}://{parsed.netloc}/"
+    # Bilibili CDN requires bilibili.com Referer, not the CDN domain itself
+    if "bilivideo.com" in parsed.netloc or "mcdn.bilivideo.cn" in parsed.netloc:
+        referer = "https://www.bilibili.com/"
+    else:
+        referer = f"{parsed.scheme}://{parsed.netloc}/"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": referer,
-        "Origin": referer.rstrip("/"),
+        "Origin": "https://www.bilibili.com" if "bilivideo" in parsed.netloc else referer.rstrip("/"),
     }
 
     try:

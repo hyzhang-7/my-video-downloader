@@ -9,17 +9,21 @@
     │
     ▼
 FastAPI 后端 (Python)
-    ├── /api/info          → yt-dlp 解析视频元信息
+    ├── /api/info          → 解析视频元信息（B站用 requests，其他用 yt-dlp）
     ├── /api/download      → 发起下载任务（server/direct）
     ├── /api/file/{id}     → 提供已下载文件
+    ├── /api/summarize     → AI 视频总结（字幕 + DeepSeek 大纲/思维导图）
+    ├── /api/chat          → AI 视频问答
+    ├── /api/subtitles     → 提取视频字幕
     ├── /api/thumbnail     → 代理封面图（绕过 Referrer/CORS）
-    ├── /api/proxy-download → 直链流式代理下载
+    ├── /api/proxy-download → 直链流式代理下载（B站 CDN 自动设置 Referer）
     ├── /api/cookies-status → cookies 配置状态
     ├── /api/task/{id}     → 轮询任务状态
     └── /ws/progress/{id}  → WebSocket 实时进度推送
     │
     ▼
-yt-dlp (Python API)
+B站: requests 直接调公开 API (x/web-interface/view + x/player/playurl)
+其他: yt-dlp (Python API)
     ├── extract_info(download=False) → 元信息
     ├── extract_info(download=True)  → 服务端下载
     └── progress_hooks               → 进度回调
@@ -223,16 +227,26 @@ B站字幕 API 对比：
 - 字幕原文: `<details>` 可折叠，`white-space: pre-wrap` 保留换行
 - AI 问答: 聊天界面，历史保留 10 轮
 
-## 8. 已知限制
+## 8. B站特殊处理（v1.4）
+
+yt-dlp 内置 B站提取器对 API 请求（`api.bilibili.com/x/player/*`）返回 403，因此 B站解析和下载完全绕过 yt-dlp：
+
+- **解析**: `requests` → `x/web-interface/view` + `x/player/playurl`
+- **下载**: `requests` 流式拉取 CDN 直链（`fnval=1` 单文件 mp4 含音频），手动进度追踪
+- **代理下载**: 自动对 `bilivideo.com` CDN 设置 `Referer: https://www.bilibili.com/`
+- **格式**: `support_formats` 映射，从 360P 到 4K
+
+## 9. 已知限制
 
 | 限制 | 说明 |
 |------|------|
+| B站依赖公开API | 如果 B站 API 变更，需要更新请求逻辑 |
 | 抖音需 cookies | 无 cookies 只能下载视频流（无音频） |
 | YouTube SSL | 部分网络环境可能无法连接 |
 | 无批量下载 | 当前仅支持单视频下载 |
 | 内存任务存储 | 服务重启后任务状态丢失 |
 
-## 8. 启动方式
+## 10. 启动方式
 
 ```bash
 # 开发模式
