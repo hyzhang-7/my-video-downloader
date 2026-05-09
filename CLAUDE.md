@@ -172,7 +172,7 @@ B站: bvid → x/web-interface/view → aid+cid → x/v2/dm/view → subtitle_ur
 |------|------|------|
 | OG | og:title/description/image/type/url/locale/site_name | 社交分享（微信、Facebook、Twitter） |
 | Twitter Card | twitter:card/title/description/image | Twitter 分享（summary_large_image） |
-| Schema.org | itemprop + JSON-LD（WebApplication） | 结构化数据，争取 Rich Snippet |
+| Schema.org | itemprop + JSON-LD（SoftwareApplication + Organization + FAQPage） | 结构化数据，争取 Rich Snippet + AI 引用 |
 | 爬虫 | robots meta + canonical + robots.txt + sitemap.xml | 索引控制 + 重复内容规避 |
 
 ### 静态资源（frontend/public/）
@@ -181,8 +181,19 @@ B站: bvid → x/web-interface/view → aid+cid → x/v2/dm/view → subtitle_ur
 |------|------|
 | `favicon.svg` | SVG 网站图标 |
 | `og-image.png` | 1200x630 分享图，暖灰底 + VidFlow 品牌文字 |
-| `robots.txt` | 允许全部爬虫，指向 sitemap |
+| `robots.txt` | 允许全部爬虫，指向 sitemap + LLMs-txt |
 | `sitemap.xml` | 网站地图，首页 URL |
+| `llms.txt` | AI 爬虫入口，站点摘要 + 结构声明（llmstxt.org 规范） |
+| `llms-full.txt` | 全站 Markdown 文档，供 LLM 深度消费 |
+
+### GEO 生成式引擎优化（v1.5）
+
+针对 ChatGPT、Perplexity、Google AI Overviews、Bing Copilot 等 AI 搜索工具优化：
+
+- **llms.txt / llms-full.txt**：符合 [llmstxt.org](https://llmstxt.org) 规范，LLM 爬虫专用入口
+- **JSON-LD @graph**：SoftwareApplication + Organization + FAQPage（5 个高频问答），替代单一 WebApplication
+- **`<noscript>` 兜底**：index.html 含 noscript 内容，不执行 JS 的爬虫也能看到核心描述
+- **robots.txt**：`LLMs-txt:` 声明指向 llms.txt
 
 ### 图片 SEO
 
@@ -194,7 +205,8 @@ B站: bvid → x/web-interface/view → aid+cid → x/v2/dm/view → subtitle_ur
 - [ ] Google Search Console 提交 sitemap
 - [ ] 百度站长平台提交 sitemap
 - [ ] Facebook Sharing Debugger 验证 OG 标签
-- [ ] Google Rich Results Test 验证结构化数据
+- [ ] Google Rich Results Test 验证结构化数据（FAQ + SoftwareApp）
+- [ ] 验证 llms.txt 可被主流 AI 爬虫访问（OpenAI GPTBot、Anthropic Claude-Web）
 
 ## 已知限制
 

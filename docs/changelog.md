@@ -1,5 +1,38 @@
 # 开发日志 — VidFlow 万能视频下载器
 
+## v1.5 — GEO 生成式引擎优化
+
+### 背景
+
+传统 SEO 针对搜索引擎（Google、百度），GEO（Generative Engine Optimization）针对 AI 对话工具（ChatGPT、Perplexity、Google AI Overviews、Bing Copilot）。AI 搜索不只看 meta 标签，更依赖**结构化数据**和**可直接引用的内容**。
+
+### 新增
+
+**llms.txt** (`frontend/public/llms.txt`)
+- 符合 [llmstxt.org](https://llmstxt.org) 规范，AI 爬虫专用入口
+- 声明站点类型、核心功能、支持平台、JSON-LD 类型
+- 指向 llms-full.txt 供 LLM 深度消费
+
+**llms-full.txt** (`frontend/public/llms-full.txt`)
+- 全站 Markdown 文档，覆盖 AI 用户常见问题
+- FAQ、功能概述、技术架构、隐私政策、开发者指南
+
+**增强 JSON-LD 结构化数据** (`frontend/index.html`)
+- 从单一 `WebApplication` 扩展为 `@graph` 多类型：
+  - `SoftwareApplication` — 比 WebApplication 更具体，含 featureList
+  - `Organization` — 品牌权威，含 logo 和 foundingDate
+  - `FAQPage` — 5 个高频问答，AI 搜索引擎优先引用 FAQ 结构化数据生成答案
+- 新增 `<noscript>` 兜底内容：不执行 JS 的 AI 爬虫也能看到核心内容
+
+**robots.txt 增强**
+- 新增 `LLMs-txt:` 声明，指向 llms.txt
+
+### 未修改
+
+- `App.vue`、`i18n.js`、后端代码 — 零功能影响
+
+---
+
 ## v1.2 — AI 视频总结
 
 ### 新增

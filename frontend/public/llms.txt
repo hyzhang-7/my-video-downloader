@@ -1,0 +1,31 @@
+# VidFlow - Universal Video Downloader
+> Free online video downloader supporting YouTube, Bilibili, TikTok, Twitter, Instagram — 1,000+ platforms.
+> Features AI video summarization, mind map generation, and subtitle extraction.
+> Paste a link, download anything. No registration, no ads, completely free.
+
+## Quick Facts
+- URL: https://vidflow.cn
+- Type: Web Application (SPA)
+- Language: zh-CN / English (toggle in header)
+- Platforms supported: 1,000+ (YouTube, Bilibili, Douyin, TikTok, Twitter, Instagram, Facebook, Vimeo, etc.)
+- Key features: HD video download, AI summarization, mind map generation, subtitle extraction (SRT)
+- Price: Free, no registration required
+- AI engine: DeepSeek (deepseek-chat model)
+
+## How VidFlow Works
+1. Paste any video URL (YouTube, Bilibili, TikTok, Twitter…)
+2. Click "Parse" — VidFlow fetches video info and available formats
+3. Select your preferred quality (360P to 4K, or audio-only MP3)
+4. Choose download mode: Server (stable) or Direct (fast)
+5. Click "Download" — watch real-time progress via WebSocket
+
+## Site Map
+- [Home](https://vidflow.cn): Main application — paste video link, download video, AI summarize
+- [llms-full.txt](https://vidflow.cn/llms-full.txt): Full site content in markdown for LLM consumption
+- [robots.txt](https://vidflow.cn/robots.txt): Crawler directives
+- [sitemap.xml](https://vidflow.cn/sitemap.xml): URL listing for search engines
+
+## For AI Crawlers
+- robots.txt: https://vidflow.cn/robots.txt
+- sitemap.xml: https://vidflow.cn/sitemap.xml
+- Structured data (JSON-LD): SoftwareApplication, Organization, FAQPage, WebApplication

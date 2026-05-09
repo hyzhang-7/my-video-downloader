@@ -1,0 +1,189 @@
+# VidFlow — Free Universal Video Downloader
+
+## What is VidFlow?
+
+VidFlow is a free online video downloader that supports YouTube, Bilibili, Douyin, TikTok, Twitter, Instagram and 1,000+ websites. No registration required. Paste a video link and download in original quality (4K, 1080p60, HDR). Also features AI video summarization, mind map generation, and subtitle extraction.
+
+VidFlow is a web application with a FastAPI (Python) backend and Vue 3 frontend. It uses yt-dlp for video processing on most platforms, with custom direct API calls for Bilibili to avoid blocking issues.
+
+## Key Features
+
+### 1. Multi-Platform Support (1,000+ sites)
+- **YouTube**: All qualities, including 4K HDR, 1080p60. Supports both server-side and direct link download modes.
+- **Bilibili / B站**: No login required. Downloads from 360P to 4K using Bilibili's public API. Includes multi-part (分P) video support.
+- **Douyin / TikTok**: Video download supported. Audio requires cookies configuration.
+- **Twitter / X**: Full video download support.
+- **Instagram**: Reel and post video download.
+- **And 1,000+ more** via yt-dlp engine (Vimeo, Facebook, Dailymotion, etc.)
+
+### 2. Original Quality Downloads
+- **4K, 1080p60, HDR**: Download at the highest available resolution.
+- **Format selection**: Choose specific resolution and format (MP4, WebM, MKV).
+- **Audio-only mode**: Extract MP3 audio from any video.
+- **Server-side download**: Stable download with real-time WebSocket progress tracking (0.5s intervals).
+- **Direct link mode**: Fast download via proxy — extracts direct CDN URL, streams through server with Content-Disposition header.
+- **Automatic format merging**: FFmpeg auto-detection — merges best video + best audio when available.
+
+### 3. AI Video Summarization
+- **Automatic subtitle extraction**:
+  - Bilibili: Uses public API (`x/v2/dm/view`) — no login required. Prefers human-generated subtitles, falls back to AI-generated.
+  - YouTube / others: Uses yt-dlp to extract auto-generated captions (VTT format).
+- **AI Summary & Key Points**: Sends subtitle text to DeepSeek API (deepseek-chat model) for structured output — one-sentence summary + bullet-point key takeaways.
+- **Interactive Mind Map**: Rendered with markmap (markdown-to-mindmap), with fullscreen mode and PNG download.
+- **AI Q&A Chat**: Ask questions about the video content. Chat history retained (last 10 rounds).
+- **Subtitle Download**: Export subtitles as SRT files (Bilibili JSON and VTT auto-converted to SRT).
+
+### 4. Zero Friction
+- **No registration**: No accounts, no sign-up required.
+- **No ads**: Clean interface, no advertisements.
+- **No waiting queues**: Instant download, no queue system.
+- **Works on mobile**: Fully responsive design, adapts to all screen sizes.
+- **Bilingual**: Chinese and English interface toggle, language preference persisted in localStorage.
+
+## Frequently Asked Questions
+
+### How to download YouTube videos?
+1. Copy the YouTube video URL from your browser address bar.
+2. Open VidFlow (https://vidflow.cn) and paste the URL into the input box.
+3. Click "Parse" — VidFlow will load the video title, thumbnail, duration, and available formats.
+4. Select your preferred quality from the format chips (e.g., 1080p, 4K, audio-only).
+5. Choose download mode: "Server" (reliable, supports format conversion) or "Direct" (fast, no server-side storage).
+6. Click "Download" and watch the real-time progress bar.
+7. Once complete, click "Save file" to save the video to your device.
+
+### How to download Bilibili (B站) videos?
+1. Copy the Bilibili video URL (e.g., https://www.bilibili.com/video/BV1xx411c7mD).
+2. Paste into VidFlow and click "Parse" — no login or cookies required.
+3. VidFlow uses Bilibili's public API (`x/web-interface/view` + `x/player/playurl`) for reliable extraction.
+4. Select quality from 360P to 4K (single-file MP4 with audio, no separate merging needed).
+5. Click "Download" — the video streams directly from Bilibili's CDN through VidFlow's proxy.
+
+### Is VidFlow really free?
+Yes, VidFlow is completely free. There is no registration, no hidden fees, no premium tiers, and no download limits. The AI video summarization feature requires the server administrator to configure a DeepSeek API key, but remains free for end users.
+
+### What platforms does VidFlow support?
+VidFlow supports 1,000+ websites including:
+- YouTube (youtube.com, youtu.be)
+- Bilibili / B站 (bilibili.com)
+- Douyin / 抖音 (douyin.com)
+- TikTok (tiktok.com)
+- Twitter / X (twitter.com, x.com)
+- Instagram (instagram.com)
+- Facebook (facebook.com)
+- Vimeo (vimeo.com)
+- Dailymotion (dailymotion.com)
+- And many more via yt-dlp's extensive extractor list.
+
+### Can I use VidFlow on mobile?
+Yes, VidFlow is fully responsive. The interface adapts to mobile screen sizes with stacked layouts, full-width thumbnails, and touch-friendly buttons. It works on iOS Safari, Android Chrome, and other mobile browsers.
+
+### How does AI video summarization work?
+1. VidFlow extracts subtitles from the video:
+   - Bilibili: Queries the public subtitle API (`x/v2/dm/view`) using the video's aid and cid.
+   - Other platforms: Uses yt-dlp to download auto-generated captions (VTT format).
+2. The subtitle text is cleaned, timestamp-stripped, and truncated to 15,000 characters.
+3. The text is sent to DeepSeek's API (deepseek-chat model, temperature=0.7) with a structured prompt requesting JSON output.
+4. The response contains: a one-sentence summary, a list of key points, and an outline in markdown format.
+5. The frontend renders: summary text, key points list, interactive mind map (via markmap), and a chat interface for follow-up questions.
+
+### What video quality can I download?
+VidFlow downloads at the highest quality available on the source platform:
+- YouTube: Up to 4K (2160p), 1080p60 HDR, depending on what the uploader provided.
+- Bilibili: Up to 4K, depending on the uploader's source quality. VidFlow supports all Bilibili quality tiers (360P, 480P, 720P, 1080P, 1080P+, 4K).
+- Other platforms: Maximum quality available through yt-dlp extraction.
+
+### Do I need to install anything?
+No. VidFlow is a web application — you use it entirely in your browser. The server handles all video processing. No browser extensions, no desktop software, no command-line tools needed.
+
+### Why does Bilibili work without login?
+VidFlow uses Bilibili's public (unauthenticated) web APIs:
+- `api.bilibili.com/x/web-interface/view` — Video metadata (title, cover, duration, cid, multi-part list)
+- `api.bilibili.com/x/player/playurl` — Format list and CDN direct URLs (with `fnval=1` for single-file MP4)
+- `api.bilibili.com/x/v2/dm/view` — Subtitle list (publicly accessible)
+
+These are the same APIs the Bilibili website uses for anonymous visitors. yt-dlp's built-in Bilibili extractor was bypassed because it triggers 403 errors on player API requests.
+
+### Is downloading videos legal?
+VidFlow is intended for personal, educational use. Users should comply with applicable laws and respect intellectual property rights. The footer states: "请遵守相关法律法规 · 充分尊重知识产权" (Comply with laws and regulations · Respect intellectual property).
+
+## Technical Information
+
+### Architecture
+- **Backend**: FastAPI (Python) — REST API + WebSocket for real-time progress
+- **Frontend**: Vue 3 (Composition API) + Vite — Single File Component (App.vue), markmap for mind maps
+- **Video engine**: yt-dlp (Python API) for most platforms; custom requests-based implementation for Bilibili
+- **AI**: DeepSeek API (deepseek-chat) via OpenAI-compatible SDK
+- **Storage**: Local `downloads/` directory — no database, tasks held in memory
+
+### Download Modes
+1. **Server mode (default)**: yt-dlp downloads video to server, WebSocket pushes progress every 0.5s. Supports FFmpeg merging (best video + best audio). File served via `/api/file/{task_id}`.
+2. **Direct mode**: Backend extracts a direct CDN URL. Frontend loads via hidden iframe → proxy endpoint (`/api/proxy-download`) → server streams content with `Content-Disposition: attachment`. Falls back to server mode if direct URL is unavailable.
+
+### API Endpoints
+- `POST /api/info` — Parse video URL, return metadata and format list
+- `POST /api/download` — Start download (server or direct mode)
+- `GET /api/file/{task_id}` — Serve downloaded file
+- `GET /api/task/{task_id}` — Poll task status
+- `GET /api/thumbnail?url=...` — Proxy thumbnail images (bypass CORS/Referrer)
+- `GET /api/proxy-download?url=...&filename=...` — Stream proxy for direct downloads
+- `POST /api/subtitles` — Extract video subtitles
+- `GET /api/subtitles/download?url=...` — Download subtitles as SRT
+- `POST /api/summarize` — AI video summarization
+- `POST /api/chat` — AI Q&A about video content
+- `GET /api/cookies-status` — Check cookies.txt configuration
+- `WS /ws/progress/{task_id}` — Real-time download progress
+
+### Privacy & Data Handling
+- **No user accounts**: No registration, no login, no user data stored.
+- **Temporary files**: Downloaded videos stored in local `downloads/` directory. Users retrieve files via download links.
+- **In-memory tasks**: Download task status stored in Python dict — lost on server restart. No persistent task history.
+- **No tracking**: No analytics, no cookies (except optional `cookies.txt` for platform authentication).
+- **Subtitle caching**: Extracted subtitles cached in memory per URL — cleared on server restart.
+
+### Limitations
+- **Bilibili API dependency**: Relies on Bilibili's public web APIs — may break if APIs change.
+- **Douyin audio**: Requires `cookies.txt` for audio track download (video-only works without).
+- **YouTube SSL**: May fail in some network environments (e.g., restricted regions).
+- **No batch downloads**: Single video download only — no queue or playlist support.
+- **Ephemeral tasks**: Task status lost on server restart (no persistence layer).
+- **FFmpeg optional**: Without FFmpeg, falls back to single-stream download (no audio-video merging).
+
+### Browser Support
+- Chrome (latest)
+- Firefox (latest)
+- Safari (latest)
+- Edge (latest)
+- Mobile browsers (iOS Safari, Android Chrome)
+
+## Getting Started (for Developers)
+
+### Prerequisites
+- Python 3.9+
+- Node.js 18+
+- FFmpeg (optional, for audio-video merging)
+- DeepSeek API key (optional, for AI features)
+
+### Development Setup
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --port 8000 --reload
+
+# Frontend
+cd frontend
+npm install
+npx vite
+# Opens at http://localhost:5173
+```
+
+### Production Deployment
+```bash
+cd frontend && npx vite build
+cd backend && uvicorn main:app --port 8000
+# Site available at http://localhost:8000
+```
+
+### Configuration
+- `cookies.txt`: Netscape-format cookies file at project root for platform authentication (optional).
+- `.env`: `DEEPSEEK_API_KEY=your-key` at project root for AI features (optional).

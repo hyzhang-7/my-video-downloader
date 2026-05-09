@@ -31,22 +31,87 @@
   <meta itemprop="description" content="粘贴链接，即刻下载。支持YouTube、B站、抖音等1000+网站视频下载，AI视频总结和字幕提取。" />
   <meta itemprop="image" content="https://vidflow.cn/og-image.png" />
 
-  <!-- ========== JSON-LD 结构化数据 ========== -->
+  <!-- ========== JSON-LD 结构化数据（GEO 增强版） ========== -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "VidFlow",
-    "url": "https://vidflow.cn",
-    "description": "免费在线万能视频下载器，支持YouTube、B站、抖音等1000+网站视频下载，AI视频总结和字幕提取。",
-    "applicationCategory": "MultimediaApplication",
-    "operatingSystem": "Web",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "CNY"
-    },
-    "browserRequirements": "Requires JavaScript"
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "VidFlow",
+        "url": "https://vidflow.cn",
+        "description": "免费在线万能视频下载器，支持YouTube、B站、抖音、Twitter等1000+网站视频下载，AI视频总结和字幕提取。",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "CNY"
+        },
+        "browserRequirements": "Requires JavaScript",
+        "featureList": [
+          "多平台视频下载（1000+网站）",
+          "原始画质下载（4K/1080p60/HDR）",
+          "AI视频总结与思维导图生成",
+          "字幕提取与SRT下载",
+          "中英文界面切换",
+          "无需注册，完全免费"
+        ]
+      },
+      {
+        "@type": "Organization",
+        "name": "VidFlow",
+        "url": "https://vidflow.cn",
+        "logo": "https://vidflow.cn/favicon.svg",
+        "description": "VidFlow 免费在线万能视频下载器",
+        "foundingDate": "2025"
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "如何下载YouTube视频？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "复制YouTube视频链接，粘贴到VidFlow输入框，点击解析，选择清晰度，点击下载即可。支持4K、1080p60、HDR等原始画质。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "VidFlow支持哪些平台？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "VidFlow支持YouTube、B站(Bilibili)、抖音、TikTok、Twitter/X、Instagram、Facebook、Vimeo等1000+网站。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "VidFlow是否免费？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "是的，VidFlow完全免费，无需注册，无广告，无限下载。AI总结功能需要服务端配置DeepSeek API密钥。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "如何使用AI视频总结功能？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "解析视频后点击「AI总结」按钮，VidFlow会自动提取字幕并通过DeepSeek AI生成视频总结、核心要点和思维导图。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "B站视频如何下载？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "复制B站视频链接(bilibili.com/video/...)，粘贴到VidFlow，无需登录即可下载360P到4K画质。VidFlow直接调用B站公开API，保证稳定性。"
+            }
+          }
+        ]
+      }
+    ]
   }
   </script>
 
@@ -64,6 +129,27 @@
 </head>
 <body>
   <div id="app"></div>
+
+  <!-- ========== Noscript 兜底内容（GEO — 对不支持JS的爬虫可见） ========== -->
+  <noscript>
+    <div style="max-width:720px;margin:40px auto;padding:32px 24px;font-family:Inter,system-ui,-apple-system,sans-serif;color:#222;background:#f5f5f5;border:1px solid rgba(0,0,0,0.08);">
+      <h1 style="font-size:2rem;font-weight:700;letter-spacing:-0.03em;margin-bottom:16px;">VidFlow — 万能视频下载器</h1>
+      <p style="font-size:1.1rem;line-height:1.8;color:#555;margin-bottom:24px;">
+        免费在线万能视频下载器，支持 YouTube、B站、抖音、Twitter 等 <strong>1000+</strong> 网站。
+        粘贴链接即可下载高清视频（4K/1080p60/HDR），支持 AI 视频总结、思维导图生成和字幕提取。
+        无需注册，完全免费。
+      </p>
+      <h2 style="font-size:1.2rem;font-weight:600;margin-bottom:12px;">核心功能</h2>
+      <ul style="font-size:1rem;line-height:2;color:#555;margin-bottom:24px;padding-left:20px;">
+        <li><strong>全平台支持</strong>：YouTube、B站、抖音、TikTok、Twitter、Instagram 等 1000+ 网站</li>
+        <li><strong>原始画质</strong>：4K、1080p60、HDR 最高可用分辨率下载</li>
+        <li><strong>AI 视频总结</strong>：自动提取字幕，生成摘要、要点、思维导图</li>
+        <li><strong>零摩擦</strong>：无需注册、无广告、无需排队</li>
+      </ul>
+      <p style="font-size:0.85rem;color:#999;">请启用 JavaScript 以使用完整功能。VidFlow is a web application — please enable JavaScript.</p>
+    </div>
+  </noscript>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

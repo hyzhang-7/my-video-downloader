@@ -6,3 +6,6 @@ Allow: /
 
 # Sitemap
 Sitemap: https://vidflow.cn/sitemap.xml
+
+# LLMs.txt declaration (GEO — Generative Engine Optimization)
+LLMs-txt: https://vidflow.cn/llms.txt
