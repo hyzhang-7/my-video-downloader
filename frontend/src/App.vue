@@ -464,7 +464,7 @@ function formatSize(bytes) {
           v-if="videoInfo.thumbnail"
           :src="'/api/thumbnail?url=' + encodeURIComponent(videoInfo.thumbnail)"
           class="video-thumb"
-          alt=""
+          :alt="videoInfo.title"
         />
         <div class="video-meta">
           <h2 class="video-title">{{ videoInfo.title }}</h2>

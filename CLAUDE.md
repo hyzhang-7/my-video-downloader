@@ -25,6 +25,11 @@ frontend/
     main.js            # Vue 入口
     style.css          # 全局 CSS 变量（配色、按钮、动画）
     composables/i18n.js  # 中英文切换（reactive locale + t() 函数）
+  public/              # 静态资源（Vite 构建直接复制到 dist/）
+    favicon.svg        # 网站图标
+    og-image.png       # OG 社交分享图（1200x630）
+    robots.txt         # 爬虫控制
+    sitemap.xml        # 网站地图
   vite.config.js       # 开发代理 /api → :8000, /ws → ws://:8000
 docs/
   requirements.md      # 需求分析文档
@@ -113,7 +118,7 @@ B站跳过 `merging`（durl 单文件已含音频），直接 `downloading → d
 - `--radius: 100px`（胶囊按钮/输入框），`--radius-sm: 14px`（内容卡片）
 - border: `rgba(0,0,0,0.08)`
 - 基础字号 `18px`，按钮胶囊形（border-radius: 100px）
-- Logo: 纯文字 `VidFlow`（无图标，无 favicon）
+- Logo: 纯文字 `VidFlow`，favicon.svg（黑底 VF 字母标）
 - Hero 区域：仅标题"粘贴链接，即刻下载。"，下方留白 60px 居中输入框
 - 特性卡片：无外框，竖线分隔（响应式：移动端横线分隔）
 - AI 面板：无关闭按钮（× 已移除）
@@ -150,6 +155,46 @@ B站: bvid → x/web-interface/view → aid+cid → x/v2/dm/view → subtitle_ur
 - B站字幕自动转为 SRT 格式（`_bilibili_segments_to_srt`）
 - yt-dlp VTT 字幕自动转为 SRT（`_vtt_to_srt`），降级保留 VTT
 - 原始字幕缓存于 `_subtitle_raw_cache`，同 URL 不重复提取
+
+## SEO 搜索引擎优化
+
+生产域名: `https://vidflow.cn`
+
+### TDK（index.html 静态标签，搜索引擎直接读取）
+
+- **Title**: `VidFlow - 万能视频下载器 | 在线视频下载，支持YouTube、B站、抖音等1000+网站`（49 字符）
+- **Description**: 覆盖产品功能、目标用户、核心价值，150+ 字符
+- **Keywords**: 视频下载, 在线视频下载, YouTube下载, B站下载, 抖音下载, 万能视频下载器, AI视频总结, VidFlow
+
+### Meta 标签
+
+| 类型 | 标签 | 用途 |
+|------|------|------|
+| OG | og:title/description/image/type/url/locale/site_name | 社交分享（微信、Facebook、Twitter） |
+| Twitter Card | twitter:card/title/description/image | Twitter 分享（summary_large_image） |
+| Schema.org | itemprop + JSON-LD（WebApplication） | 结构化数据，争取 Rich Snippet |
+| 爬虫 | robots meta + canonical + robots.txt + sitemap.xml | 索引控制 + 重复内容规避 |
+
+### 静态资源（frontend/public/）
+
+| 文件 | 说明 |
+|------|------|
+| `favicon.svg` | SVG 网站图标 |
+| `og-image.png` | 1200x630 分享图，暖灰底 + VidFlow 品牌文字 |
+| `robots.txt` | 允许全部爬虫，指向 sitemap |
+| `sitemap.xml` | 网站地图，首页 URL |
+
+### 图片 SEO
+
+- `App.vue` 视频缩略图 `alt` 动态绑定 `videoInfo.title`
+- OG 图片使用绝对 URL `https://vidflow.cn/og-image.png`
+
+### 上线后任务
+
+- [ ] Google Search Console 提交 sitemap
+- [ ] 百度站长平台提交 sitemap
+- [ ] Facebook Sharing Debugger 验证 OG 标签
+- [ ] Google Rich Results Test 验证结构化数据
 
 ## 已知限制
 

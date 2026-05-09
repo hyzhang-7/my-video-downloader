@@ -1,11 +1,66 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <!-- ========== 基础必需标签 ========== -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>VidFlow</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- ========== 核心 SEO 标签 ========== -->
+  <title>VidFlow - 万能视频下载器 | 在线视频下载，支持YouTube、B站、抖音等1000+网站</title>
+  <meta name="description" content="VidFlow 免费在线万能视频下载器，支持YouTube、B站、抖音、Twitter等1000+网站视频下载。无需注册，粘贴链接即可下载高清视频，支持AI视频总结、思维导图生成和字幕提取。" />
+  <meta name="keywords" content="视频下载, 在线视频下载, YouTube下载, B站下载, 抖音下载, 万能视频下载器, AI视频总结, VidFlow" />
+
+  <!-- ========== Open Graph 标签（社交分享） ========== -->
+  <meta property="og:title" content="VidFlow - 万能视频下载器 | 支持YouTube、B站、抖音等1000+网站" />
+  <meta property="og:description" content="粘贴链接，即刻下载。支持AI视频总结、思维导图生成和字幕提取。免费，无需注册。" />
+  <meta property="og:image" content="https://vidflow.cn/og-image.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://vidflow.cn" />
+  <meta property="og:locale" content="zh_CN" />
+  <meta property="og:site_name" content="VidFlow" />
+
+  <!-- ========== Twitter Card 标签 ========== -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="VidFlow - 万能视频下载器 | 支持YouTube、B站、抖音等1000+网站" />
+  <meta name="twitter:description" content="粘贴链接，即刻下载。支持AI视频总结、思维导图生成和字幕提取。免费，无需注册。" />
+  <meta name="twitter:image" content="https://vidflow.cn/og-image.png" />
+
+  <!-- ========== Schema.org 标签 ========== -->
+  <meta itemprop="name" content="VidFlow - 万能视频下载器" />
+  <meta itemprop="description" content="粘贴链接，即刻下载。支持YouTube、B站、抖音等1000+网站视频下载，AI视频总结和字幕提取。" />
+  <meta itemprop="image" content="https://vidflow.cn/og-image.png" />
+
+  <!-- ========== JSON-LD 结构化数据 ========== -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "VidFlow",
+    "url": "https://vidflow.cn",
+    "description": "免费在线万能视频下载器，支持YouTube、B站、抖音等1000+网站视频下载，AI视频总结和字幕提取。",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "CNY"
+    },
+    "browserRequirements": "Requires JavaScript"
+  }
+  </script>
+
+  <!-- ========== 爬虫控制 ========== -->
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://vidflow.cn" />
+
+  <!-- ========== 其他优化标签 ========== -->
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- Favicon -->
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
   <div id="app"></div>

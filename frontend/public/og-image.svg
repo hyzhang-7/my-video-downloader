@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#e9e9e9" />
+  <rect x="0" y="0" width="1200" height="630" rx="0" fill="#e9e9e9" />
+
+  <!-- Logo area -->
+  <text x="80" y="340" font-family="Inter, sans-serif" font-size="96" font-weight="700" letter-spacing="-2" fill="#222222">
+    Vid<tspan font-weight="300" fill="#717171">Flow</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <text x="80" y="420" font-family="Inter, sans-serif" font-size="28" font-weight="300" fill="#717171" letter-spacing="2">
+    粘贴链接，即刻下载。
+  </text>
+
+  <!-- Bottom description -->
+  <text x="80" y="540" font-family="Inter, sans-serif" font-size="18" font-weight="300" fill="#a0a0a0" letter-spacing="1">
+    万能视频下载器  ·  支持YouTube、B站、抖音等1000+网站  ·  AI视频总结
+  </text>
+</svg>

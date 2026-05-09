@@ -1,0 +1,8 @@
+# VidFlow robots.txt
+# Allow all crawlers to index the site
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://vidflow.cn/sitemap.xml
