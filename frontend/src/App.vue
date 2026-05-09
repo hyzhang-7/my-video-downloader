@@ -1,10 +1,173 @@
 <script setup>
-import { ref, reactive, computed, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from './composables/i18n.js'
 import { Transformer } from 'markmap-lib'
 import { Markmap } from 'markmap-view'
 
 const { t, toggleLocale, isZh } = useI18n()
+
+// ── Auth state ──────────────────────────────────────────────────
+const token = ref(localStorage.getItem('token') || '')
+const userInfo = ref(null)
+const showAuthModal = ref(false)
+const authMode = ref('login') // 'login' | 'register'
+const authEmail = ref('')
+const authPassword = ref('')
+const authLoading = ref(false)
+const authError = ref('')
+const toast = ref('')
+
+function apiHeaders() {
+  const h = { 'Content-Type': 'application/json' }
+  if (token.value) h['Authorization'] = `Bearer ${token.value}`
+  return h
+}
+
+async function fetchUser() {
+  if (!token.value) return
+  try {
+    const res = await fetch('/api/auth/me', { headers: apiHeaders() })
+    if (res.ok) {
+      const data = await res.json()
+      userInfo.value = data.user
+    } else {
+      logout()
+    }
+  } catch { /* offline or server down, keep token */ }
+}
+
+async function doAuth() {
+  authError.value = ''
+  authLoading.value = true
+  try {
+    const endpoint = authMode.value === 'login' ? '/api/auth/login' : '/api/auth/register'
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: authEmail.value.trim(),
+        password: authPassword.value,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Error')
+    if (authMode.value === 'login') {
+      token.value = data.token
+      localStorage.setItem('token', data.token)
+      await fetchUser()
+      closeAuthModal()
+    } else {
+      // After register, auto login
+      token.value = data.token || ''
+      if (!token.value) {
+        // Some backends don't return token on register; login instead
+        authMode.value = 'login'
+        authError.value = ''
+        showToast('注册成功，请登录')
+        return
+      }
+      localStorage.setItem('token', token.value)
+      await fetchUser()
+      closeAuthModal()
+    }
+  } catch (e) {
+    authError.value = e.message
+  } finally {
+    authLoading.value = false
+  }
+}
+
+function logout() {
+  token.value = ''
+  userInfo.value = null
+  localStorage.removeItem('token')
+}
+
+function openAuthModal(mode = 'login') {
+  authMode.value = mode
+  authEmail.value = ''
+  authPassword.value = ''
+  authError.value = ''
+  showAuthModal.value = true
+}
+
+function closeAuthModal() {
+  showAuthModal.value = false
+}
+
+function isVip() {
+  return userInfo.value?.vip?.active
+}
+
+function showToast(msg) {
+  toast.value = msg
+  setTimeout(() => { toast.value = '' }, 3000)
+}
+
+// ── Payment ────────────────────────────────────────────────────
+async function startPayment() {
+  if (!token.value) {
+    openAuthModal('login')
+    return
+  }
+  try {
+    const res = await fetch('/api/payment/create-checkout', {
+      method: 'POST',
+      headers: apiHeaders(),
+    })
+    if (!res.ok) {
+      const d = await res.json()
+      throw new Error(d.detail || 'Payment failed')
+    }
+    const data = await res.json()
+    window.location.href = data.checkout_url
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+// Check for Stripe return on mount
+async function checkStripeReturn() {
+  const params = new URLSearchParams(window.location.search)
+  const sessionId = params.get('session_id')
+  const canceled = params.get('canceled')
+  if (sessionId) {
+    // Clean URL first
+    window.history.replaceState({}, '', window.location.pathname)
+    // Verify payment synchronously (webhook may not have arrived yet)
+    try {
+      const res = await fetch('/api/payment/verify', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ session_id: sessionId }),
+      })
+      const data = await res.json()
+      if (data.paid) {
+        await fetchUser()
+        showToast(t('paymentSuccess'))
+      } else {
+        showToast(data.message || '支付处理中，请稍后刷新页面')
+        // Poll a few times in case webhook is delayed
+        for (let i = 0; i < 5; i++) {
+          await new Promise(r => setTimeout(r, 3000))
+          await fetchUser()
+          if (isVip()) { showToast(t('paymentSuccess')); break }
+        }
+      }
+    } catch (e) {
+      // Fall back to polling
+      showToast('支付处理中…')
+      for (let i = 0; i < 5; i++) {
+        await new Promise(r => setTimeout(r, 3000))
+        await fetchUser()
+        if (isVip()) { showToast(t('paymentSuccess')); break }
+      }
+    }
+  } else if (canceled) {
+    showToast(t('paymentCanceled'))
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+}
 
 const url = ref('')
 const loading = ref(false)
@@ -58,7 +221,7 @@ async function parseUrl() {
   try {
     const res = await fetch('/api/info', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders(),
       body: JSON.stringify({ url: url.value.trim() }),
     })
     if (!res.ok) {
@@ -84,7 +247,7 @@ async function startDownload() {
   try {
     const res = await fetch('/api/download', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders(),
       body: JSON.stringify({
         url: url.value.trim(),
         format_id: selectedFormat.value || undefined,
@@ -179,6 +342,7 @@ const overlayRef = ref(null)
 
 async function startAiSummarize() {
   if (!videoInfo.value) return
+  if (!token.value) { openAuthModal('login'); return }
   aiError.value = ''
   aiLoading.value = true
   showAiPanel.value = true
@@ -187,10 +351,16 @@ async function startAiSummarize() {
   try {
     const res = await fetch('/api/summarize', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders(),
       body: JSON.stringify({ url: url.value.trim() }),
     })
     const data = await res.json()
+    if (!res.ok) {
+      if (res.status === 403) { aiError.value = t('vipRequired'); return }
+      if (res.status === 429) { aiError.value = t('dailyLimit'); return }
+      aiError.value = data.detail || data.message || t('parseFailed')
+      return
+    }
     if (!data.ok) {
       aiError.value = data.message || t('parseFailed')
       return
@@ -227,28 +397,73 @@ async function sendChatMessage() {
   const question = chatInput.value.trim()
   chatInput.value = ''
   chatMessages.value.push({ role: 'user', content: question })
+
+  if (!token.value) { openAuthModal('login'); return }
+
   chatLoading.value = true
+  chatMessages.value.push({ role: 'assistant', content: '' })
+  const aiIdx = chatMessages.value.length - 1
+
+  // Try streaming first, fall back to non-streaming
+  let streamed = false
   try {
-    const res = await fetch('/api/chat', {
+    const res = await fetch('/api/chat/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders(),
       body: JSON.stringify({
         url: url.value.trim(),
         question,
-        history: chatMessages.value.slice(0, -1),
+        history: chatMessages.value.slice(0, -2),
       }),
     })
-    const data = await res.json()
-    if (data.ok) {
-      chatMessages.value.push({ role: 'assistant', content: data.answer })
-    } else {
-      chatMessages.value.push({ role: 'assistant', content: data.answer || t('parseFailed') })
+    if (res.ok) {
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') { streamed = true; continue }
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.token) {
+                chatMessages.value[aiIdx] = { role: 'assistant', content: chatMessages.value[aiIdx].content + parsed.token }
+              } else if (parsed.error) {
+                chatMessages.value[aiIdx] = { role: 'assistant', content: parsed.error }
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
     }
-  } catch (e) {
-    chatMessages.value.push({ role: 'assistant', content: t('wsFailed') })
-  } finally {
-    chatLoading.value = false
+  } catch { /* stream failed, fall through to non-streaming */ }
+
+  // Fallback: non-streaming if stream didn't produce content
+  if (!streamed && !chatMessages.value[aiIdx].content) {
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          url: url.value.trim(),
+          question,
+          history: chatMessages.value.slice(0, -2),
+        }),
+      })
+      const data = await res.json()
+      chatMessages.value[aiIdx] = { role: 'assistant', content: data.answer || data.detail || t('parseFailed') }
+    } catch (e) {
+      chatMessages.value[aiIdx] = { role: 'assistant', content: t('wsFailed') }
+    }
   }
+
+  chatLoading.value = false
 }
 
 function closeAiPanel() {
@@ -378,6 +593,11 @@ function downloadSubtitles() {
   document.body.removeChild(a)
 }
 
+onMounted(() => {
+  fetchUser()
+  checkStripeReturn()
+})
+
 onUnmounted(() => { if (ws) ws.close() })
 
 function formatDuration(sec) {
@@ -403,6 +623,16 @@ function formatSize(bytes) {
         <span class="logo-text">Vid<span class="logo-light">Flow</span></span>
       </div>
       <div class="header-right">
+        <!-- Auth area -->
+        <template v-if="userInfo">
+          <span class="user-email">{{ userInfo.email }}</span>
+          <span v-if="isVip()" class="vip-badge">{{ t('vipBadge') }}</span>
+          <button v-else class="btn-upgrade" @click="startPayment">{{ t('upgradeVip') }}</button>
+          <button class="btn-logout" @click="logout">{{ t('logout') }}</button>
+        </template>
+        <template v-else>
+          <button class="btn-login" @click="openAuthModal('login')">{{ t('login') }}</button>
+        </template>
         <button class="lang-toggle" @click="toggleLocale">
           {{ isZh ? 'EN' : '中' }}
         </button>
@@ -502,9 +732,11 @@ function formatSize(bytes) {
           <button
             v-for="f in formats"
             :key="f.format_id"
-            :class="['format-chip', { selected: selectedFormat === f.format_id }]"
-            @click="selectedFormat = f.format_id"
+            :class="['format-chip', { selected: selectedFormat === f.format_id, locked: f.locked }]"
+            :title="f.locked ? t('qualityLocked') : ''"
+            @click="f.locked ? startPayment() : (selectedFormat = f.format_id)"
           >
+            <span v-if="f.locked" class="fmt-lock">&#128274;</span>
             <span class="fmt-res">{{ f.resolution || f.note || f.ext }}</span>
             <span class="fmt-ext">.{{ f.ext }}</span>
             <span v-if="f.filesize" class="fmt-size">{{ formatSize(f.filesize) }}</span>
@@ -516,6 +748,9 @@ function formatSize(bytes) {
           >
             <span class="fmt-res">{{ t('audioOnly') }}</span>
           </button>
+        </div>
+        <div v-if="videoInfo?.quality_limited && !isVip()" class="quality-notice">
+          &#128274; {{ t('qualityLocked') }}
         </div>
       </div>
     </section>
@@ -646,6 +881,36 @@ function formatSize(bytes) {
       </div>
     </section>
 
+    <!-- Plan comparison -->
+    <section v-if="step === 'input'" class="features compare animate-in" :aria-label="t('compareTitle')">
+      <div class="feature">
+        <div class="feature-num">{{ t('compareFree') }}</div>
+        <h3>Free</h3>
+        <p class="compare-price">¥0</p>
+        <ul class="compare-list">
+          <li>{{ t('compareQualityFree') }}</li>
+          <li>{{ t('compareAiFree') }}</li>
+          <li>{{ t('compareDownloadFree') }}</li>
+          <li>{{ t('compareSupportFree') }}</li>
+        </ul>
+      </div>
+      <div class="feature">
+        <div class="feature-num">{{ t('compareVip') }}</div>
+        <h3>VIP</h3>
+        <p class="compare-price">{{ t('comparePrice') }}</p>
+        <ul class="compare-list">
+          <li class="check">{{ t('compareQualityVip') }}</li>
+          <li class="check">{{ t('compareAiVip') }}</li>
+          <li class="check">{{ t('compareDownloadVip') }}</li>
+          <li class="check">{{ t('compareSupportVip') }}</li>
+        </ul>
+        <button v-if="!isVip()" class="btn-upgrade-lg" @click="startPayment">
+          {{ t('upgradeVip') }}
+        </button>
+        <span v-else class="vip-active-tag">{{ t('vipBadge') }} &#10003;</span>
+      </div>
+    </section>
+
     <!-- Mindmap fullscreen overlay -->
     <Teleport to="body">
       <div
@@ -670,6 +935,44 @@ function formatSize(bytes) {
           <svg ref="mindmapFullscreenSvg" class="mindmap-fullscreen-svg"></svg>
         </div>
       </div>
+    </Teleport>
+
+    <!-- Auth Modal -->
+    <Teleport to="body">
+      <div v-if="showAuthModal" class="auth-overlay" @mousedown.self="closeAuthModal">
+        <div class="auth-modal">
+          <div class="auth-tabs">
+            <button
+              :class="['auth-tab', { active: authMode === 'login' }]"
+              @click="authMode = 'login'"
+            >{{ t('login') }}</button>
+            <button
+              :class="['auth-tab', { active: authMode === 'register' }]"
+              @click="authMode = 'register'"
+            >{{ t('register') }}</button>
+          </div>
+          <div class="auth-body">
+            <div class="auth-field">
+              <label class="auth-label">{{ t('email') }}</label>
+              <input v-model="authEmail" type="email" class="auth-input" placeholder="you@example.com" @keyup.enter="doAuth" />
+            </div>
+            <div class="auth-field">
+              <label class="auth-label">{{ t('password') }}</label>
+              <input v-model="authPassword" type="password" class="auth-input" placeholder="······" @keyup.enter="doAuth" />
+            </div>
+            <div v-if="authError" class="error-msg">{{ authError }}</div>
+            <button class="btn-primary auth-submit" :disabled="authLoading || !authEmail.trim() || !authPassword" @click="doAuth">
+              <span v-if="authLoading">...</span>
+              <span v-else>{{ authMode === 'login' ? t('loginBtn') : t('registerBtn') }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Toast -->
+    <Teleport to="body">
+      <div v-if="toast" class="toast">{{ toast }}</div>
     </Teleport>
 
     <!-- Footer -->
@@ -1241,19 +1544,25 @@ function formatSize(bytes) {
 
 /* ── Chat ──────────────────────────────────────────────────────── */
 .chat-messages {
-  max-height: 300px;
+  max-height: 800px;
   overflow-y: auto;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  width: 100%;
 }
 .chat-msg {
-  padding: 10px 14px;
-  font-size: 0.8rem;
-  line-height: 1.6;
-  max-width: 85%;
+  padding: 28px 32px;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  max-width: 82%;
+  min-width: 0;
   border-radius: var(--radius);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: pre-wrap;
+  box-sizing: border-box;
 }
 .chat-user {
   align-self: flex-end;
@@ -1262,9 +1571,8 @@ function formatSize(bytes) {
 }
 .chat-ai {
   align-self: flex-start;
-  background: #f0f0f0;
+  background: #e0e0e0;
   color: var(--text);
-  border-left: 2px solid var(--accent);
 }
 .chat-input-row {
   display: flex;
@@ -1326,5 +1634,241 @@ function formatSize(bytes) {
   color: var(--text);
   white-space: pre-wrap;
   border-top: 1px solid var(--border);
+}
+
+/* ── Auth Header ───────────────────────────────────────────────── */
+.user-email {
+  font-size: 0.7rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vip-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 100px;
+}
+.btn-login, .btn-logout {
+  background: none;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 100px;
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.btn-login:hover, .btn-logout:hover {
+  color: var(--text);
+  border-color: rgba(0,0,0,0.25);
+}
+.btn-upgrade {
+  background: var(--accent);
+  border: none;
+  border-radius: 100px;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.2s;
+}
+.btn-upgrade:hover { opacity: 0.85; }
+
+/* ── Auth Modal ────────────────────────────────────────────────── */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-modal {
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  width: 360px;
+  max-width: 90vw;
+  overflow: hidden;
+}
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+.auth-tab {
+  padding: 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.auth-tab.active {
+  color: var(--text);
+  font-weight: 600;
+}
+.auth-body {
+  padding: 24px 20px;
+}
+.auth-field {
+  margin-bottom: 16px;
+}
+.auth-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+.auth-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+.auth-input:focus {
+  border-color: rgba(0,0,0,0.25);
+}
+.auth-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* ── Quality notice ────────────────────────────────────────────── */
+.quality-notice {
+  margin-top: 10px;
+  font-size: 0.7rem;
+  font-weight: 300;
+  color: var(--accent-dark);
+}
+
+/* ── Locked format chip ────────────────────────────────────────── */
+.format-chip.locked {
+  opacity: 0.45;
+  cursor: pointer;
+}
+.format-chip.locked:hover {
+  opacity: 0.7;
+}
+.fmt-lock {
+  font-size: 0.65rem;
+  margin-right: 2px;
+}
+
+/* ── Plan comparison ───────────────────────────────────────────── */
+.features.compare {
+  margin-top: 100px;
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.features.compare .feature {
+  padding: 32px 24px;
+}
+.compare-price {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 8px 0 12px;
+  color: var(--text);
+}
+.compare-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.compare-list li {
+  font-size: 0.75rem;
+  font-weight: 300;
+  color: var(--text-dim);
+  padding-left: 16px;
+  position: relative;
+}
+.compare-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.15);
+}
+.compare-list li.check::before {
+  background: var(--accent);
+}
+.btn-upgrade-lg {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.2s;
+}
+.btn-upgrade-lg:hover { background: var(--primary-hover); }
+.vip-active-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent-dark);
+}
+
+/* ── Toast ─────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20000;
+  padding: 12px 28px;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  animation: fadeInUp 0.3s ease both;
+}
+
+/* ── Responsive additions ──────────────────────────────────────── */
+@media (max-width: 640px) {
+  .features.compare { grid-template-columns: 1fr; }
+  .features.compare .feature { border-right: none; border-bottom: 1px solid var(--border); }
+  .features.compare .feature:last-child { border-bottom: none; }
+  .header-right { gap: 8px; }
+  .user-email { display: none; }
 }
 </style>

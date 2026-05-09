@@ -2,13 +2,13 @@
 
 ## 项目定位
 
-从任意平台（YouTube、B站、抖音、Twitter 等 1000+ 网站）下载视频的 Web 工具。支持 **AI 视频总结**（字幕提取 + AI 大纲/要点/思维导图 + AI 问答）。轻量、无数据库、Python 技术栈。
+从任意平台（YouTube、B站、抖音、Twitter 等 1000+ 网站）下载视频的 Web 工具。支持 **AI 视频总结**（字幕提取 + AI 大纲/要点/思维导图 + AI 问答）、**会员付费**（Stripe 支付 + VIP 权限控制）。轻量、Python 技术栈。
 
 ## 技术栈
 
-- **后端**: FastAPI + yt-dlp (Python API) + FFmpeg + DeepSeek API
+- **后端**: FastAPI + yt-dlp (Python API) + FFmpeg + DeepSeek API + Stripe SDK + PyJWT
 - **前端**: Vue 3 + Vite，单文件组件 `App.vue` + markmap 思维导图
-- **存储**: 本地 `downloads/` 目录，无数据库
+- **存储**: 本地 `downloads/` 目录 + SQLite 数据库（`vidflow.db`）
 
 ## 目录结构
 
@@ -18,7 +18,10 @@ backend/
   downloader.py        # yt-dlp 封装（解析、直链、服务端下载、格式选择、FFmpeg 检测）
   summarizer.py        # AI 总结（字幕提取 + DeepSeek API + 思维导图 + 问答）
   douyin_extractor.py  # 抖音免 Cookie 解析
-  requirements.txt     # fastapi, uvicorn, yt-dlp, httpx, python-multipart, openai, requests
+  database.py          # SQLite 数据库（users, memberships, daily_usage）
+  auth.py              # 认证模块（PBKDF2 密码哈希 + JWT + VIP/每日限额检查）
+  payment.py           # Stripe 支付（Checkout Session + Webhook + Verify）
+  requirements.txt     # fastapi, uvicorn, yt-dlp, openai, requests, stripe, PyJWT
 frontend/
   src/
     App.vue            # 主组件（全部 UI 逻辑，含 <script setup> + <style scoped>）
@@ -63,14 +66,79 @@ cd backend  && uvicorn main:app --port 8000  # http://localhost:8000
 | `/api/cookies-status` | GET | 查询 cookies.txt 是否配置 |
 | `/api/subtitles` | POST | 提取视频字幕（B站免登公开 API） |
 | `/api/subtitles/download?url=...` | GET | 下载字幕文件（SRT 格式，B站/VTT 自动转换） |
-| `/api/summarize` | POST | AI 视频总结（字幕 + 大纲 + 要点 + 思维导图） |
-| `/api/chat` | POST | AI 视频问答（基于字幕内容） |
+| `/api/summarize` | POST | AI 视频总结（**VIP 限定**，10 次/天，字幕 + 大纲 + 要点 + 思维导图） |
+| `/api/chat` | POST | AI 视频问答（**VIP 限定**，10 次/天，非流式） |
+| `/api/chat/stream` | POST | AI 视频问答流式输出（**VIP 限定**，SSE，逐 token 返回） |
+| `/api/auth/register` | POST | 邮箱+密码注册 |
+| `/api/auth/login` | POST | 登录，返回 JWT token（72h 有效） |
+| `/api/auth/me` | GET | 获取当前用户信息 + VIP 状态 + 今日使用次数 |
+| `/api/payment/create-checkout` | POST | 创建 Stripe Checkout Session，返回支付 URL |
+| `/api/payment/verify` | POST | 同步验证支付状态并激活 VIP（前端从 Stripe 跳回时调用） |
+| `/api/webhook/stripe` | POST | Stripe Webhook 接收（签名验证 + checkout.session.completed） |
 | `/ws/progress/{task_id}` | WS | 实时进度推送（0.5s 间隔） |
 
 ## 下载模式
 
 1. **服务端下载（默认）** — yt-dlp 下载到 downloads/，WebSocket 推送进度，完成后提供文件链接
 2. **直链下载** — 后端提取直链 URL，前端通过隐藏 iframe 代理下载，不弹窗。直链不可用时自动降级
+
+## 会员系统
+
+### 定价与模式
+- **¥9.90/30天**，一次性购买，到期手动续费，非自动订阅
+- 货币 CNY，`STRIPE_CURRENCY = "cny"`, `PRICE_UNIT_AMOUNT = 990`（fen）
+- Stripe Checkout 模式: `mode="payment"`（非 `subscription`）
+
+### 权限控制
+
+| 功能 | 免费用户 | VIP 用户 |
+|------|---------|---------|
+| AI 总结 (`/api/summarize`) | 403 禁止 | 10 次/天，超限 429 |
+| AI 问答 (`/api/chat`) | 403 禁止 | 10 次/天（与总结共享配额） |
+| 视频清晰度 | 最高 720p（>720p 格式锁定，前端加锁图标） | 无限制 |
+
+### 数据库表（SQLite, `vidflow.db`）
+
+- **users**: `id, email (UNIQUE), password_hash, is_admin, created_at`
+- **memberships**: `id, user_id (UNIQUE FK), status (active/expired/cancelled), start_date, end_date, amount, stripe_session_id (UNIQUE), created_at` — 一个用户一条记录，续费 UPDATE
+- **daily_usage**: `id, user_id (FK), usage_date, count`, `UNIQUE(user_id, usage_date)` — AI 每日次数 upsert
+
+### 认证
+- PBKDF2-SHA256 密码哈希（60 万次迭代, 16 字节 salt）
+- JWT HS256，`sub` 必须为 `str`（PyJWT 要求），72 小时过期
+- `get_current_user` / `get_optional_user` 两个 FastAPI 依赖，前者 401，后者返回 None
+- `check_vip(user_id)` 查询有效会员（`status='active' AND end_date >= now`）
+- `check_daily_limit(user_id, limit)` 检查 + 原子递增每日使用次数
+
+### 支付流程
+```
+用户点击"升级VIP" → POST /api/payment/create-checkout（需登录）
+→ 前端 window.location.href = checkout_url（跳转 Stripe 支付页）
+→ 用户付款 → Stripe 重定向到 FRONTEND_URL?session_id=cs_test_xxx
+→ 前端 onMounted → checkStripeReturn()
+→ POST /api/payment/verify（同步验证，幂等）
+→ 后端 stripe.checkout.Session.retrieve() → 验证 user_id 匹配 → _fulfill_vip()
+→ 同时 Webhook（备选通道）→ /api/webhook/stripe → 签名验证 → _fulfill_vip()
+```
+
+### Stripe 开发坑点（重要）
+
+- **StripeObject ≠ dict**: `session.metadata` 是 StripeObject，不支持 `.get()`，必须用 `.to_dict().get()` 或 `[]`
+- **Webhook Secret 每次变化**: `stripe listen` 每次运行生成新的 `whsec_xxx`，需同步更新 `.env`
+- **本地测试**: 需要 `stripe login` + `stripe listen --forward-to localhost:8000/api/webhook/stripe`
+- **`sub` 类型**: PyJWT 强制 `sub` 为 `str`，创建时 `str(user_id)`，解析后 `int(payload["sub"])`
+- **幂等性**: `stripe_session_id` 设 UNIQUE 约束，`_fulfill_vip()` 先查再插；Session 创建时传 `idempotency_key`
+
+### 环境变量（`.env`）
+
+```
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx   # 每次 stripe listen 都会变
+VIP_PRICE_CNY=9.90
+VIP_DURATION_DAYS=30
+JWT_SECRET=xxx                    # 至少 32 字符
+FRONTEND_URL=http://localhost:5173  # Stripe 支付后跳回地址
+```
 
 ## 关键逻辑
 
@@ -215,3 +283,6 @@ B站: bvid → x/web-interface/view → aid+cid → x/v2/dm/view → subtitle_ur
 - 任务状态存在内存，服务重启后丢失
 - YouTube 部分网络环境可能 SSL 失败
 - AI 总结的 DeepSeek API 需联网，B站字幕免登
+- Stripe 本地测试需保持 `stripe listen` 运行（Webhook 转发），生产环境需部署公网 Webhook 端点
+- Stripe Webhook Secret 每次运行 `stripe listen` 都会变化，需同步更新 `.env`
+- `STRIPE_CURRENCY = "cny"` 仅部分 Stripe 账户支持，如不可用需改为 `"usd"`

@@ -381,7 +381,7 @@ def generate_summary(url: str, cookies_source: Optional[str] = None) -> dict:
 
 
 def chat_with_video(url: str, question: str, history: Optional[list[dict]] = None, cookies_source: Optional[str] = None) -> dict:
-    """Chat with AI about a video's content."""
+    """Chat with AI about a video's content (non-streaming)."""
     sub_result = extract_subtitles(url, cookies_source=cookies_source)
     if not sub_result["ok"] or not sub_result["subtitles_text"]:
         return {"ok": False, "answer": "无法获取视频字幕，无法进行问答"}
@@ -391,6 +391,53 @@ def chat_with_video(url: str, question: str, history: Optional[list[dict]] = Non
     if not client:
         return {"ok": False, "answer": "未配置 DEEPSEEK_API_KEY"}
 
+    messages = _build_chat_messages(subtitle_text, question, history)
+
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=2048,
+        )
+        return {"ok": True, "answer": response.choices[0].message.content.strip()}
+    except Exception as e:
+        return {"ok": False, "answer": f"AI 问答出错: {str(e)[:300]}"}
+
+
+def chat_with_video_stream(url: str, question: str, history: Optional[list[dict]] = None, cookies_source: Optional[str] = None):
+    """Streaming chat — yields text chunks from DeepSeek API."""
+    sub_result = extract_subtitles(url, cookies_source=cookies_source)
+    if not sub_result["ok"] or not sub_result["subtitles_text"]:
+        yield json.dumps({"error": "无法获取视频字幕，无法进行问答"})
+        return
+
+    subtitle_text = sub_result["subtitles_text"]
+    client = _get_client()
+    if not client:
+        yield json.dumps({"error": "未配置 DEEPSEEK_API_KEY"})
+        return
+
+    messages = _build_chat_messages(subtitle_text, question, history)
+
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=2048,
+            stream=True,
+        )
+        for chunk in response:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                yield json.dumps({"token": delta.content})
+    except Exception as e:
+        yield json.dumps({"error": f"AI 问答出错: {str(e)[:300]}"})
+
+
+def _build_chat_messages(subtitle_text: str, question: str, history: Optional[list[dict]] = None) -> list:
+    """Build message list for chat completion."""
     max_chars = 12000
     ctx = subtitle_text[:max_chars] if len(subtitle_text) > max_chars else subtitle_text
 
@@ -409,17 +456,7 @@ def chat_with_video(url: str, question: str, history: Optional[list[dict]] = Non
         messages.extend(history[-10:])
 
     messages.append({"role": "user", "content": question})
-
-    try:
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=2048,
-        )
-        return {"ok": True, "answer": response.choices[0].message.content.strip()}
-    except Exception as e:
-        return {"ok": False, "answer": f"AI 问答出错: {str(e)[:300]}"}
+    return messages
 
 
 def _bilibili_segments_to_srt(segments: list) -> str:

@@ -38,6 +38,14 @@ frontend/dist/
 .env
 .env.local
 
+# Database
+backend/vidflow.db
+backend/vidflow.db-shm
+backend/vidflow.db-wal
+
 # Local config
 .claude/settings.local.json
 prompt.txt
+SEO优化工作流.md
+.claude
+CLAUDE.md
